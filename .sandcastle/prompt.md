@@ -40,7 +40,7 @@ Pay extra attention to test files that touch the relevant parts of the code.
 
 # EXECUTION
 
-Use RGR to complete the task.
+If applicable, use RGR to complete the task.
 
 1. RED: write one test
 2. GREEN: write the implementation to pass that test
