@@ -1049,6 +1049,43 @@ describe("--branch syncOut", () => {
     });
     expect(worktrees.trim().split("\n")).toHaveLength(1);
   });
+
+  it("zero changes in sandbox — no branch created, no worktree created", async () => {
+    const { hostDir, sandboxRepoDir, layer } = await setup();
+    await initRepo(hostDir);
+    await commitFile(hostDir, "base.txt", "base", "initial commit");
+
+    // syncIn with --branch
+    await Effect.runPromise(
+      syncIn(hostDir, sandboxRepoDir, { branch: "feature/empty" }).pipe(
+        Effect.provide(layer),
+      ),
+    );
+    const baseHead = await getHead(sandboxRepoDir);
+
+    // No changes made in sandbox — sync-out should be a no-op
+    await Effect.runPromise(
+      syncOut(hostDir, sandboxRepoDir, baseHead, {
+        branch: "feature/empty",
+      }).pipe(Effect.provide(layer)),
+    );
+
+    // Branch should NOT exist on the host
+    await expect(
+      execAsync("git rev-parse --verify refs/heads/feature/empty", {
+        cwd: hostDir,
+      }),
+    ).rejects.toThrow();
+
+    // Host should still be on main, undisturbed
+    expect(await getBranch(hostDir)).toBe("main");
+
+    // No dangling worktrees
+    const { stdout: worktrees } = await execAsync("git worktree list", {
+      cwd: hostDir,
+    });
+    expect(worktrees.trim().split("\n")).toHaveLength(1);
+  });
 });
 
 describe("--branch round-trip", () => {
