@@ -10,7 +10,6 @@ const plan = await sandcastle.run({
   maxIterations: 1,
   model: "claude-opus-4-6",
   promptFile: "./.sandcastle/plan-prompt.md",
-  logging: { type: "stdout" },
 });
 
 const planMatch = plan.stdout.match(/<plan>([\s\S]*?)<\/plan>/);
