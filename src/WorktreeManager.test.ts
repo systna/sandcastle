@@ -100,6 +100,77 @@ describe("WorktreeManager.create", () => {
       /already checked out/i,
     );
   });
+
+  it("error message includes the path of the existing worktree", async () => {
+    const repoDir = await setupRepo();
+    await execAsync("git checkout -b my-branch", { cwd: repoDir });
+    await commitFile(repoDir, "x.txt", "x", "branch commit");
+    await execAsync("git checkout main", { cwd: repoDir });
+
+    const { path: existingPath } = await create(repoDir, {
+      branch: "my-branch",
+    });
+
+    let error: Error | undefined;
+    try {
+      await create(repoDir, { branch: "my-branch" });
+    } catch (e) {
+      error = e as Error;
+    }
+
+    expect(error).toBeDefined();
+    expect(error!.message).toContain(existingPath);
+  });
+
+  it("error message suggests what to do", async () => {
+    const repoDir = await setupRepo();
+    await execAsync("git checkout -b my-branch", { cwd: repoDir });
+    await commitFile(repoDir, "x.txt", "x", "branch commit");
+    await execAsync("git checkout main", { cwd: repoDir });
+
+    await create(repoDir, { branch: "my-branch" });
+
+    let error: Error | undefined;
+    try {
+      await create(repoDir, { branch: "my-branch" });
+    } catch (e) {
+      error = e as Error;
+    }
+
+    expect(error).toBeDefined();
+    // Should suggest using a different branch or waiting
+    expect(error!.message).toMatch(/different branch|wait/i);
+  });
+
+  it("parallel runs on different branches work without interference", async () => {
+    const repoDir = await setupRepo();
+    await execAsync("git checkout -b branch-a", { cwd: repoDir });
+    await commitFile(repoDir, "a.txt", "a", "branch-a commit");
+    await execAsync("git checkout main", { cwd: repoDir });
+    await execAsync("git checkout -b branch-b", { cwd: repoDir });
+    await commitFile(repoDir, "b.txt", "b", "branch-b commit");
+    await execAsync("git checkout main", { cwd: repoDir });
+
+    const [wtA, wtB] = await Promise.all([
+      create(repoDir, { branch: "branch-a" }),
+      create(repoDir, { branch: "branch-b" }),
+    ]);
+
+    expect(wtA.branch).toBe("branch-a");
+    expect(wtB.branch).toBe("branch-b");
+    expect(wtA.path).not.toBe(wtB.path);
+
+    await remove(wtA.path);
+    await remove(wtB.path);
+  });
+
+  it("detects collision when branch is checked out in the main working tree", async () => {
+    const repoDir = await setupRepo();
+    // "main" is the currently checked-out branch in the main working tree
+    await expect(create(repoDir, { branch: "main" })).rejects.toThrow(
+      /already checked out/i,
+    );
+  });
 });
 
 describe("WorktreeManager.remove", () => {

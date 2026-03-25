@@ -29,6 +29,38 @@ export interface WorktreeInfo {
   branch: string;
 }
 
+interface WorktreeEntry {
+  path: string;
+  branch: string | null;
+}
+
+/** Parses `git worktree list --porcelain` output into structured entries. */
+const listWorktrees = async (repoDir: string): Promise<WorktreeEntry[]> => {
+  const output = await execGit(["worktree", "list", "--porcelain"], repoDir);
+  const entries: WorktreeEntry[] = [];
+  let currentPath: string | null = null;
+  let currentBranch: string | null = null;
+
+  for (const line of output.split("\n")) {
+    if (line.startsWith("worktree ")) {
+      if (currentPath !== null) {
+        entries.push({ path: currentPath, branch: currentBranch });
+      }
+      currentPath = line.slice("worktree ".length).trim();
+      currentBranch = null;
+    } else if (line.startsWith("branch ")) {
+      // "branch refs/heads/my-branch" -> "my-branch"
+      currentBranch = line.slice("branch refs/heads/".length).trim();
+    }
+  }
+
+  if (currentPath !== null) {
+    entries.push({ path: currentPath, branch: currentBranch });
+  }
+
+  return entries;
+};
+
 /**
  * Creates a git worktree at `.sandcastle/worktrees/<name>/`.
  *
@@ -58,25 +90,36 @@ export const create = async (
 
   const worktreePath = join(worktreesDir, worktreeName);
 
-  try {
-    if (opts?.branch) {
-      await execGit(["worktree", "add", worktreePath, branch], repoDir);
-    } else {
+  if (opts?.branch) {
+    // Proactively detect collision before git produces a confusing error
+    const existing = await listWorktrees(repoDir);
+    const collision = existing.find((wt) => wt.branch === branch);
+    if (collision) {
+      throw new Error(
+        `Branch '${branch}' is already checked out in worktree at '${collision.path}'. ` +
+          `Use a different branch name, or wait for the other run to finish.`,
+      );
+    }
+    await execGit(["worktree", "add", worktreePath, branch], repoDir);
+  } else {
+    try {
       await execGit(
         ["worktree", "add", "-b", branch, worktreePath, "HEAD"],
         repoDir,
       );
+    } catch (e: unknown) {
+      const msg = String((e as Error).message ?? e);
+      if (
+        msg.includes("already checked out") ||
+        msg.includes("already exists")
+      ) {
+        throw new Error(
+          `Branch '${branch}' is already checked out in another worktree. ` +
+            `Use a different branch name, or wait for the other run to finish.`,
+        );
+      }
+      throw e;
     }
-  } catch (e: unknown) {
-    const msg = String((e as Error).message ?? e);
-    // git says "already checked out at" when the branch is live in another worktree,
-    // or "already exists" when the worktree path already exists (same thing from our POV)
-    if (msg.includes("already checked out") || msg.includes("already exists")) {
-      throw new Error(
-        `Branch '${branch}' is already checked out in another worktree`,
-      );
-    }
-    throw e;
   }
 
   return { path: worktreePath, branch };
