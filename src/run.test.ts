@@ -1,12 +1,52 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import * as clack from "@clack/prompts";
 import {
   buildLogFilename,
   defaultImageName,
+  printFileDisplayStartup,
   sanitizeBranchForFilename,
   USE_WORKTREE_MODE,
   type RunOptions,
   type RunResult,
 } from "./run.js";
+
+vi.mock("@clack/prompts", () => ({
+  log: {
+    success: vi.fn(),
+    message: vi.fn(),
+  },
+}));
+
+describe("printFileDisplayStartup", () => {
+  beforeEach(() => {
+    process.env.FORCE_COLOR = "1";
+    vi.clearAllMocks();
+  });
+  afterEach(() => {
+    delete process.env.FORCE_COLOR;
+  });
+
+  it("calls clack.log.success with bold-styled 'Agent started'", () => {
+    printFileDisplayStartup("/project/.sandcastle/logs/main.log");
+    expect(clack.log.success).toHaveBeenCalledWith(
+      expect.stringContaining("\u001b[1mAgent started\u001b[22m"),
+    );
+  });
+
+  it("does not use console.log for 'Agent started'", () => {
+    const consoleSpy = vi.spyOn(console, "log");
+    printFileDisplayStartup("/project/.sandcastle/logs/main.log");
+    expect(consoleSpy).not.toHaveBeenCalled();
+    consoleSpy.mockRestore();
+  });
+
+  it("calls clack.log.message with the tail command", () => {
+    printFileDisplayStartup("/project/.sandcastle/logs/main.log");
+    const allCalls = (clack.log.message as ReturnType<typeof vi.fn>).mock.calls;
+    const allArgs = allCalls.flat().join(" ");
+    expect(allArgs).toContain("tail -f");
+  });
+});
 
 describe("RunResult", () => {
   it("includes logFilePath when logging to a file", () => {

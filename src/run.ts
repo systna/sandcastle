@@ -1,9 +1,15 @@
 import { NodeContext, NodeFileSystem } from "@effect/platform-node";
 import path, { join } from "node:path";
 import { Effect, Layer } from "effect";
+import * as clack from "@clack/prompts";
 import { getAgentProvider } from "./AgentProvider.js";
 import { readConfig } from "./Config.js";
-import { ClackDisplay, Display, FileDisplay } from "./Display.js";
+import {
+  ClackDisplay,
+  Display,
+  FileDisplay,
+  terminalStyle,
+} from "./Display.js";
 import { orchestrate } from "./Orchestrator.js";
 import { resolvePrompt } from "./PromptResolver.js";
 import {
@@ -23,6 +29,16 @@ import {
 /** Replace characters that are invalid or problematic in file paths with dashes. */
 export const sanitizeBranchForFilename = (branch: string): string =>
   branch.replace(/[/\\:*?"<>|]/g, "-");
+
+/**
+ * Print the styled "Agent started" startup message to the terminal when using
+ * file-based logging. Uses clack styling to match other status messages.
+ */
+export const printFileDisplayStartup = (logPath: string): void => {
+  clack.log.success(terminalStyle.status("Agent started"));
+  clack.log.message(`Run this to see logs:`);
+  clack.log.message(`  tail -f ${path.relative(process.cwd(), logPath)}`);
+};
 
 /**
  * Derive the default Docker image name from the repo directory.
@@ -179,11 +195,7 @@ export const run = async (options: RunOptions): Promise<RunResult> => {
   const displayLayer =
     resolvedLogging.type === "file"
       ? (() => {
-          console.log(`Agent started`);
-          console.log(`  Run this to see logs:`);
-          console.log(
-            `  tail -f ${path.relative(process.cwd(), resolvedLogging.path)}`,
-          );
+          printFileDisplayStartup(resolvedLogging.path);
           return Layer.provide(
             FileDisplay.layer(resolvedLogging.path),
             NodeFileSystem.layer,
