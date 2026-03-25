@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { scaffold } from "./InitService.js";
+import { scaffold, getNextStepsLines } from "./InitService.js";
 import type { AgentProvider } from "./AgentProvider.js";
 import { claudeCodeProvider } from "./AgentProvider.js";
 import { SANDBOX_WORKSPACE_DIR } from "./SandboxFactory.js";
@@ -276,6 +276,43 @@ describe("InitService scaffold", () => {
       expect(templates.some((t) => t.name === "sequential-reviewer")).toBe(
         true,
       );
+    });
+  });
+
+  describe("getNextStepsLines", () => {
+    it("blank template returns steps mentioning .env and npx sandcastle run", () => {
+      const lines = getNextStepsLines("blank");
+      expect(lines.length).toBeGreaterThanOrEqual(2);
+      const joined = lines.join("\n");
+      expect(joined).toContain(".sandcastle/.env");
+      expect(joined).toContain("npx sandcastle run");
+    });
+
+    it("non-blank template returns steps mentioning .env, package.json scripts, and npm run sandcastle", () => {
+      const lines = getNextStepsLines("simple-loop");
+      const joined = lines.join("\n");
+      expect(joined).toContain(".sandcastle/.env");
+      expect(joined).toContain("package.json");
+      expect(joined).toContain("npm run sandcastle");
+    });
+
+    it("non-blank template includes a note about customizing the install command", () => {
+      const lines = getNextStepsLines("simple-loop");
+      const joined = lines.join("\n");
+      expect(joined).toContain("npm install");
+      expect(joined).toContain("onSandboxReady");
+    });
+
+    it("returns at least 2 numbered steps for blank template", () => {
+      const lines = getNextStepsLines("blank");
+      const numberedSteps = lines.filter((l) => /^\d+\./.test(l));
+      expect(numberedSteps.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it("returns at least 3 numbered steps for non-blank templates", () => {
+      const lines = getNextStepsLines("simple-loop");
+      const numberedSteps = lines.filter((l) => /^\d+\./.test(l));
+      expect(numberedSteps.length).toBeGreaterThanOrEqual(3);
     });
   });
 
