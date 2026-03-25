@@ -279,6 +279,22 @@ describe("InitService scaffold", () => {
     });
   });
 
+  it("simple-loop template does not scaffold compiled .js or .d.ts files", async () => {
+    const dir = await makeDir();
+    await runScaffold(dir, fakeProvider, "simple-loop");
+
+    const { readdir } = await import("node:fs/promises");
+    const files = await readdir(join(dir, ".sandcastle"));
+    const compiledFiles = files.filter(
+      (f) =>
+        f.endsWith(".js") ||
+        f.endsWith(".d.ts") ||
+        f.endsWith(".js.map") ||
+        f.endsWith(".d.ts.map"),
+    );
+    expect(compiledFiles).toEqual([]);
+  });
+
   it("unknown template name throws a clear error", async () => {
     const dir = await makeDir();
     await expect(runScaffold(dir, fakeProvider, "nonexistent")).rejects.toThrow(

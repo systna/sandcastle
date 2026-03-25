@@ -16,6 +16,7 @@
   },
   "scripts": {
     "build": "tsgo --project tsconfig.build.json",
+    "postbuild": "rm -rf dist/templates && cp -r src/templates dist/templates",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsgo --noEmit",

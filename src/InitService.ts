@@ -76,7 +76,14 @@ const copyTemplateFiles = (
       .pipe(Effect.mapError((e) => new Error(e.message)));
     yield* Effect.all(
       files
-        .filter((f) => f !== "template.json")
+        .filter(
+          (f) =>
+            f !== "template.json" &&
+            !f.endsWith(".js") &&
+            !f.endsWith(".js.map") &&
+            !f.endsWith(".d.ts") &&
+            !f.endsWith(".d.ts.map"),
+        )
         .map((f) =>
           fs
             .copyFile(join(templateDir, f), join(destDir, f))
