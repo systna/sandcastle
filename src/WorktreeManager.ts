@@ -24,6 +24,10 @@ const execGit = async (args: string[], cwd: string): Promise<string> => {
   }
 };
 
+/** Generates a temporary branch name in the form `sandcastle/<YYYYMMDD-HHMMSS>`. */
+export const generateTempBranchName = (): string =>
+  `sandcastle/${formatTimestamp(new Date())}`;
+
 export interface WorktreeInfo {
   path: string;
   branch: string;

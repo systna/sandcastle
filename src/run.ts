@@ -1,7 +1,5 @@
 import { mkdirSync } from "node:fs";
 import path, { dirname, join } from "node:path";
-import { exec } from "node:child_process";
-import { promisify } from "node:util";
 import { Effect, Layer } from "effect";
 import { getAgentProvider } from "./AgentProvider.js";
 import { readConfig } from "./Config.js";
@@ -10,12 +8,11 @@ import { orchestrate } from "./Orchestrator.js";
 import { resolvePrompt } from "./PromptResolver.js";
 import { DockerSandboxFactory, SandboxConfig } from "./SandboxFactory.js";
 import { resolveEnv } from "./EnvResolver.js";
+import { generateTempBranchName } from "./WorktreeManager.js";
 import {
   type PromptArgs,
   substitutePromptArgs,
 } from "./PromptArgumentSubstitution.js";
-
-const execAsync = promisify(exec);
 
 /** Replace characters that are invalid or problematic in file paths with dashes. */
 export const sanitizeBranchForFilename = (branch: string): string =>
@@ -107,18 +104,10 @@ export const run = async (options: RunOptions): Promise<RunResult> => {
   const env = await resolveEnv(hostRepoDir);
   provider.envCheck(env);
 
-  // Resolve log file name from branch (explicit or current git branch)
-  let logBranchName = branch;
-  if (!logBranchName) {
-    try {
-      const { stdout } = await execAsync("git rev-parse --abbrev-ref HEAD", {
-        cwd: hostRepoDir,
-      });
-      logBranchName = stdout.trim();
-    } catch {
-      logBranchName = "sandcastle";
-    }
-  }
+  // When no branch is provided, generate a temporary branch name.
+  // This names the log file after the temp branch and also directs
+  // the sandbox to work on that branch (instead of the current host branch).
+  const resolvedBranch = branch ?? generateTempBranchName();
 
   // Resolve logging option
   const resolvedLogging: LoggingOption = options.logging ?? {
@@ -127,7 +116,7 @@ export const run = async (options: RunOptions): Promise<RunResult> => {
       hostRepoDir,
       ".sandcastle",
       "logs",
-      `${sanitizeBranchForFilename(logBranchName)}.log`,
+      `${sanitizeBranchForFilename(resolvedBranch)}.log`,
     ),
   };
   const displayLayer =
@@ -161,7 +150,7 @@ export const run = async (options: RunOptions): Promise<RunResult> => {
         Image: resolvedImageName,
         Iterations: String(maxIterations),
       };
-      if (branch) rows["Branch"] = branch;
+      rows["Branch"] = resolvedBranch;
       if (resolvedModel) rows["Model"] = resolvedModel;
       yield* d.summary("Sandcastle Run", rows);
 
@@ -176,7 +165,7 @@ export const run = async (options: RunOptions): Promise<RunResult> => {
         iterations: maxIterations,
         config: resolvedConfig,
         prompt: resolvedPrompt,
-        branch,
+        branch: resolvedBranch,
         model: resolvedModel,
         completionSignal: options.completionSignal,
         timeoutSeconds: options.timeoutSeconds,

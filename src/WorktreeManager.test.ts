@@ -4,7 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
-import { create, pruneStale, remove } from "./WorktreeManager.js";
+import {
+  create,
+  generateTempBranchName,
+  pruneStale,
+  remove,
+} from "./WorktreeManager.js";
 
 const execAsync = promisify(exec);
 
@@ -38,6 +43,20 @@ const setupRepo = async () => {
   await commitFile(repoDir, "hello.txt", "hello", "initial commit");
   return repoDir;
 };
+
+describe("generateTempBranchName", () => {
+  it("returns a string in sandcastle/<YYYYMMDD-HHMMSS> format", () => {
+    const name = generateTempBranchName();
+    expect(name).toMatch(/^sandcastle\/\d{8}-\d{6}$/);
+  });
+
+  it("returns different names when called at different times", async () => {
+    const a = generateTempBranchName();
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+    const b = generateTempBranchName();
+    expect(a).not.toBe(b);
+  });
+});
 
 describe("WorktreeManager.create", () => {
   it("creates a worktree at .sandcastle/worktrees/<name>/", async () => {
