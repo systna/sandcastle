@@ -13,8 +13,6 @@ import {
 import { orchestrate } from "./Orchestrator.js";
 import { resolvePrompt } from "./PromptResolver.js";
 import {
-  DockerSandboxFactory,
-  SandboxConfig,
   WorktreeDockerSandboxFactory,
   WorktreeSandboxConfig,
   SANDBOX_WORKSPACE_DIR,
@@ -114,15 +112,6 @@ export interface RunResult {
   readonly logFilePath?: string;
 }
 
-const SANDBOX_REPOS_DIR = "/home/agent/repos";
-
-/**
- * When true, use worktree-based sandbox mode: the host git worktree is
- * bind-mounted into the container, giving real-time file visibility in the IDE.
- * When false, use isolated (bundle/patch) mode. Toggle in code during development.
- */
-export const USE_WORKTREE_MODE = true;
-
 export const run = async (options: RunOptions): Promise<RunResult> => {
   const {
     prompt,
@@ -135,8 +124,6 @@ export const run = async (options: RunOptions): Promise<RunResult> => {
   } = options;
 
   const hostRepoDir = process.cwd();
-  const repoName = hostRepoDir.split("/").pop()!;
-  const sandboxRepoDir = `${SANDBOX_REPOS_DIR}/${repoName}`;
 
   // Resolve prompt
   const rawPrompt = await Effect.runPromise(
@@ -203,31 +190,20 @@ export const run = async (options: RunOptions): Promise<RunResult> => {
         })()
       : ClackDisplay.layer;
 
-  const factoryLayer = USE_WORKTREE_MODE
-    ? Layer.provide(
-        WorktreeDockerSandboxFactory.layer,
-        Layer.merge(
-          Layer.succeed(WorktreeSandboxConfig, {
-            imageName: resolvedImageName,
-            env,
-            hostRepoDir,
-            // Pass explicit branch only — when undefined, WorktreeManager creates a temp branch
-            // and SandboxLifecycle cherry-picks commits onto the host's current branch
-            branch,
-          }),
-          NodeFileSystem.layer,
-        ),
-      )
-    : Layer.provide(
-        DockerSandboxFactory.layer,
-        Layer.succeed(SandboxConfig, { imageName: resolvedImageName, env }),
-      );
-
-  // In worktree mode the container mounts the worktree at SANDBOX_WORKSPACE_DIR.
-  // In isolated mode the repo is synced into SANDBOX_REPOS_DIR/<repoName>.
-  const resolvedSandboxRepoDir = USE_WORKTREE_MODE
-    ? SANDBOX_WORKSPACE_DIR
-    : sandboxRepoDir;
+  const factoryLayer = Layer.provide(
+    WorktreeDockerSandboxFactory.layer,
+    Layer.merge(
+      Layer.succeed(WorktreeSandboxConfig, {
+        imageName: resolvedImageName,
+        env,
+        hostRepoDir,
+        // Pass explicit branch only — when undefined, WorktreeManager creates a temp branch
+        // and SandboxLifecycle cherry-picks commits onto the host's current branch
+        branch,
+      }),
+      NodeFileSystem.layer,
+    ),
+  );
 
   const runLayer = Layer.merge(factoryLayer, displayLayer);
 
@@ -250,13 +226,11 @@ export const run = async (options: RunOptions): Promise<RunResult> => {
 
       return yield* orchestrate({
         hostRepoDir,
-        sandboxRepoDir: resolvedSandboxRepoDir,
+        sandboxRepoDir: SANDBOX_WORKSPACE_DIR,
         iterations: maxIterations,
         config: resolvedConfig,
         prompt: resolvedPrompt,
-        // In worktree mode: pass original branch (possibly undefined) so SandboxLifecycle
-        // triggers cherry-pick for temp branches. In isolated mode: always pass resolvedBranch.
-        branch: USE_WORKTREE_MODE ? branch : resolvedBranch,
+        branch,
         model: resolvedModel,
         completionSignal: options.completionSignal,
         timeoutSeconds: options.timeoutSeconds,

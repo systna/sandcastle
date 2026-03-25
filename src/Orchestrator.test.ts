@@ -81,7 +81,6 @@ const makeTestSandboxFactory = (
   let branchCounter = 0;
 
   const factoryLayer = Layer.succeed(SandboxFactory, {
-    skipSync: true,
     withSandbox: <A, E, R>(
       makeEffect: (
         info: import("./SandboxFactory.js").SandboxInfo,

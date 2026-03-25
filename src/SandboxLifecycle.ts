@@ -33,9 +33,7 @@ export interface SandboxLifecycleOptions {
   readonly sandboxRepoDir: string;
   readonly hooks?: SandcastleConfig["hooks"];
   readonly branch?: string;
-  /** When true, skip sync-in and sync-out (worktree mode: repo is bind-mounted directly). */
-  readonly skipSync?: boolean;
-  /** Host-side path to the worktree directory. Required in worktree mode when sandboxRepoDir
+  /** Host-side path to the worktree directory. Required when sandboxRepoDir
    *  is a container path that doesn't exist on the host (e.g. /home/agent/workspace). */
   readonly hostWorktreePath?: string;
 }

@@ -80,7 +80,7 @@ const setup = async () => {
   return { hostDir, sandboxDir, sandboxRepoDir, layer };
 };
 
-describe("withSandboxLifecycle (worktree mode — skipSync: true)", () => {
+describe("withSandboxLifecycle (worktree mode)", () => {
   const setupWorktree = async () => {
     const hostDir = await mkdtemp(join(tmpdir(), "host-"));
     await execAsync("git init -b main", { cwd: hostDir });
@@ -111,7 +111,6 @@ describe("withSandboxLifecycle (worktree mode — skipSync: true)", () => {
         {
           hostRepoDir: hostDir,
           sandboxRepoDir: worktreeDir,
-          skipSync: true,
         },
         (ctx) =>
           Effect.gen(function* () {
@@ -133,7 +132,6 @@ describe("withSandboxLifecycle (worktree mode — skipSync: true)", () => {
         {
           hostRepoDir: hostDir,
           sandboxRepoDir: worktreeDir,
-          skipSync: true,
         },
         (ctx) =>
           Effect.gen(function* () {
@@ -170,7 +168,7 @@ describe("withSandboxLifecycle (worktree mode — skipSync: true)", () => {
         {
           hostRepoDir: hostDir,
           sandboxRepoDir: worktreeDir,
-          skipSync: true,
+
           hooks: {
             onSandboxReady: [{ command: "echo ready > ready-marker.txt" }],
           },
@@ -194,7 +192,6 @@ describe("withSandboxLifecycle (worktree mode — skipSync: true)", () => {
         {
           hostRepoDir: hostDir,
           sandboxRepoDir: worktreeDir,
-          skipSync: true,
         },
         (ctx) =>
           Effect.gen(function* () {
@@ -225,7 +222,6 @@ describe("withSandboxLifecycle (worktree mode — skipSync: true)", () => {
         {
           hostRepoDir: hostDir,
           sandboxRepoDir: worktreeDir,
-          skipSync: true,
         },
         () => Effect.succeed("no-op"),
       ).pipe(Effect.provide(Layer.merge(layer, testDisplayLayer))),
@@ -243,7 +239,6 @@ describe("withSandboxLifecycle (worktree mode — skipSync: true)", () => {
         {
           hostRepoDir: hostDir,
           sandboxRepoDir: worktreeDir,
-          skipSync: true,
         },
         (ctx) =>
           Effect.gen(function* () {
@@ -276,7 +271,6 @@ describe("withSandboxLifecycle (worktree mode — skipSync: true)", () => {
         {
           hostRepoDir: hostDir,
           sandboxRepoDir: worktreeDir,
-          skipSync: true,
         },
         () => Effect.succeed("no-op"),
       ).pipe(Effect.provide(Layer.merge(layer, testDisplayLayer))),
@@ -298,7 +292,6 @@ describe("withSandboxLifecycle (worktree mode — skipSync: true)", () => {
           {
             hostRepoDir: hostDir,
             sandboxRepoDir: worktreeDir,
-            skipSync: true,
           },
           (ctx) =>
             Effect.gen(function* () {
@@ -352,7 +345,7 @@ describe("withSandboxLifecycle (worktree mode — skipSync: true)", () => {
         {
           hostRepoDir: hostDir,
           sandboxRepoDir: containerPath,
-          skipSync: true,
+
           hostWorktreePath: worktreeDir,
         },
         (ctx) =>
@@ -395,7 +388,6 @@ describe("withSandboxLifecycle (worktree mode — skipSync: true)", () => {
         {
           hostRepoDir: hostDir,
           sandboxRepoDir: worktreeDir,
-          skipSync: true,
         },
         (ctx) =>
           Effect.gen(function* () {
@@ -444,7 +436,6 @@ describe("withSandboxLifecycle (worktree mode — skipSync: true)", () => {
         {
           hostRepoDir: hostDir,
           sandboxRepoDir: worktreeDir,
-          skipSync: true,
         },
         (ctx) =>
           Effect.gen(function* () {
@@ -498,7 +489,6 @@ describe("withSandboxLifecycle (worktree mode — skipSync: true)", () => {
           sandboxRepoDir: worktreeDir,
           // explicit branch — commits stay on that branch, no cherry-pick
           branch: "sandcastle/test",
-          skipSync: true,
         },
         (ctx) =>
           Effect.gen(function* () {

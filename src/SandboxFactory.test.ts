@@ -19,8 +19,6 @@ vi.mock("./WorktreeManager.js", () => ({
 import { execFile } from "node:child_process";
 import * as WorktreeManager from "./WorktreeManager.js";
 import {
-  DockerSandboxFactory,
-  SandboxConfig,
   SandboxFactory,
   WorktreeSandboxConfig,
   WorktreeDockerSandboxFactory,
@@ -224,31 +222,5 @@ describe("WorktreeDockerSandboxFactory", () => {
     ).rejects.toThrow();
 
     expect(mockRemove).toHaveBeenCalledWith(worktreePath);
-  });
-});
-
-describe("DockerSandboxFactory (isolated mode)", () => {
-  const makeLayer = () =>
-    Layer.provide(
-      DockerSandboxFactory.layer,
-      Layer.succeed(SandboxConfig, {
-        imageName: "test-image",
-        env: {},
-      }),
-    );
-
-  beforeEach(() => {
-    mockDockerSuccess();
-  });
-
-  it("does not create a worktree", async () => {
-    await Effect.runPromise(
-      Effect.gen(function* () {
-        const factory = yield* SandboxFactory;
-        yield* factory.withSandbox(() => Effect.void);
-      }).pipe(Effect.provide(makeLayer())),
-    );
-
-    expect(mockCreate).not.toHaveBeenCalled();
   });
 });

@@ -229,14 +229,6 @@ const makeDockerSandboxLayer = (containerName: string): Layer.Layer<Sandbox> =>
 /** The mount point inside the container where the project worktree is bound. */
 export const SANDBOX_WORKSPACE_DIR = "/home/agent/workspace";
 
-export class SandboxConfig extends Context.Tag("SandboxConfig")<
-  SandboxConfig,
-  {
-    readonly imageName: string;
-    readonly env: Record<string, string>;
-  }
->() {}
-
 export interface SandboxInfo {
   /** Host-side path to the worktree directory (worktree mode only). */
   readonly hostWorktreePath?: string;
@@ -248,8 +240,6 @@ export class SandboxFactory extends Context.Tag("SandboxFactory")<
     readonly withSandbox: <A, E, R>(
       makeEffect: (info: SandboxInfo) => Effect.Effect<A, E, R | Sandbox>,
     ) => Effect.Effect<A, E | DockerError | WorktreeError, Exclude<R, Sandbox>>;
-    /** True in worktree mode — the repo is bind-mounted, so sync is unnecessary. */
-    readonly skipSync: boolean;
   }
 >() {}
 
@@ -307,7 +297,6 @@ export const WorktreeDockerSandboxFactory = {
         yield* WorktreeSandboxConfig;
       const fileSystem = yield* FileSystem.FileSystem;
       return {
-        skipSync: true,
         withSandbox: <A, E, R>(
           makeEffect: (info: SandboxInfo) => Effect.Effect<A, E, R | Sandbox>,
         ): Effect.Effect<
@@ -395,58 +384,6 @@ export const WorktreeDockerSandboxFactory = {
               }).pipe(
                 Effect.andThen(removeContainer(containerName)),
                 Effect.andThen(WorktreeManager.remove(worktreeInfo.path)),
-                Effect.orDie,
-              ),
-          );
-        },
-      };
-    }),
-  ),
-};
-
-export const DockerSandboxFactory = {
-  layer: Layer.effect(
-    SandboxFactory,
-    Effect.gen(function* () {
-      const { imageName, env } = yield* SandboxConfig;
-      return {
-        skipSync: false,
-        withSandbox: <A, E, R>(
-          makeEffect: (info: SandboxInfo) => Effect.Effect<A, E, R | Sandbox>,
-        ): Effect.Effect<
-          A,
-          E | DockerError | WorktreeError,
-          Exclude<R, Sandbox>
-        > => {
-          const containerName = `sandcastle-${randomUUID()}`;
-
-          const cleanup = () => forceRemoveContainerSync(containerName);
-          const onSignal = () => {
-            cleanup();
-            process.exit(1);
-          };
-
-          return Effect.acquireUseRelease(
-            startContainer(containerName, imageName, env).pipe(
-              Effect.tap(() =>
-                Effect.sync(() => {
-                  process.on("exit", cleanup);
-                  process.on("SIGINT", onSignal);
-                  process.on("SIGTERM", onSignal);
-                }),
-              ),
-            ),
-            () =>
-              makeEffect({}).pipe(
-                Effect.provide(makeDockerSandboxLayer(containerName)),
-              ) as Effect.Effect<A, E | DockerError, Exclude<R, Sandbox>>,
-            () =>
-              Effect.sync(() => {
-                process.removeListener("exit", cleanup);
-                process.removeListener("SIGINT", onSignal);
-                process.removeListener("SIGTERM", onSignal);
-              }).pipe(
-                Effect.andThen(removeContainer(containerName)),
                 Effect.orDie,
               ),
           );

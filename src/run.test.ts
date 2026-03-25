@@ -5,7 +5,6 @@ import {
   defaultImageName,
   printFileDisplayStartup,
   sanitizeBranchForFilename,
-  USE_WORKTREE_MODE,
   type RunOptions,
   type RunResult,
 } from "./run.js";
@@ -92,12 +91,6 @@ describe("RunOptions", () => {
   it("allows name to be omitted", () => {
     const opts: RunOptions = { prompt: "test" };
     expect(opts.name).toBeUndefined();
-  });
-});
-
-describe("USE_WORKTREE_MODE", () => {
-  it("is a boolean feature flag", () => {
-    expect(typeof USE_WORKTREE_MODE).toBe("boolean");
   });
 });
 

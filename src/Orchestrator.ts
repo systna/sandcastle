@@ -174,7 +174,6 @@ export const orchestrate = (
               sandboxRepoDir,
               hooks: config?.hooks,
               branch,
-              skipSync: factory.skipSync,
               hostWorktreePath,
             },
             (ctx) =>

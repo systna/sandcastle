@@ -1,5 +1,6 @@
 import { Command, Options } from "@effect/cli";
 import { FileSystem } from "@effect/platform";
+import { NodeFileSystem } from "@effect/platform-node";
 import { Effect, HashMap, Layer } from "effect";
 import * as clack from "@clack/prompts";
 import { spawn } from "node:child_process";
@@ -13,9 +14,10 @@ import { defaultImageName, run } from "./run.js";
 import { getAgentProvider } from "./AgentProvider.js";
 import { AgentError, ConfigDirError, InitError } from "./errors.js";
 import {
-  DockerSandboxFactory,
-  SandboxConfig,
   SandboxFactory,
+  WorktreeDockerSandboxFactory,
+  WorktreeSandboxConfig,
+  SANDBOX_WORKSPACE_DIR,
 } from "./SandboxFactory.js";
 import { withSandboxLifecycle } from "./SandboxLifecycle.js";
 import { resolveEnv } from "./EnvResolver.js";
@@ -405,11 +407,8 @@ const runCommand = Command.make(
 
 // --- Interactive command ---
 
-const SANDBOX_REPOS_DIR = "/home/agent/repos";
-
 const interactiveSession = (options: {
   hostRepoDir: string;
-  sandboxRepoDir: string;
   config: import("./Config.js").SandcastleConfig;
   model?: string;
 }): Effect.Effect<
@@ -418,7 +417,8 @@ const interactiveSession = (options: {
   SandboxFactory | Display
 > =>
   Effect.gen(function* () {
-    const { hostRepoDir, sandboxRepoDir, config } = options;
+    const { hostRepoDir, config } = options;
+    const sandboxRepoDir = SANDBOX_WORKSPACE_DIR;
     const resolvedModel = options.model ?? config.model ?? DEFAULT_MODEL;
     const factory = yield* SandboxFactory;
     const d = yield* Display;
@@ -490,9 +490,6 @@ const interactiveCommand = Command.make(
       const hostRepoDir = process.cwd();
       yield* requireConfigDir(hostRepoDir);
 
-      const repoName = hostRepoDir.split("/").pop()!;
-      const sandboxRepoDir = `${SANDBOX_REPOS_DIR}/${repoName}`;
-
       // Resolve agent provider: CLI flag > config > default
       const config = yield* readConfig(hostRepoDir);
       const imageName = resolveImageName(imageNameFlag, hostRepoDir, config);
@@ -522,18 +519,20 @@ const interactiveCommand = Command.make(
       const d = yield* Display;
       yield* d.summary("Sandcastle Interactive", { Image: imageName });
 
-      const sandboxConfigLayer = Layer.succeed(SandboxConfig, {
-        imageName,
-        env,
-      });
       const factoryLayer = Layer.provide(
-        DockerSandboxFactory.layer,
-        sandboxConfigLayer,
+        WorktreeDockerSandboxFactory.layer,
+        Layer.merge(
+          Layer.succeed(WorktreeSandboxConfig, {
+            imageName,
+            env,
+            hostRepoDir,
+          }),
+          NodeFileSystem.layer,
+        ),
       );
 
       yield* interactiveSession({
         hostRepoDir,
-        sandboxRepoDir,
         config,
         model: resolvedModel,
       }).pipe(Effect.provide(factoryLayer));
