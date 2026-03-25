@@ -8,6 +8,9 @@ import type { DockerError } from "./errors.js";
 import { Sandbox } from "./Sandbox.js";
 import * as WorktreeManager from "./WorktreeManager.js";
 
+/** The mount point inside the container where the project worktree is bound. */
+export const SANDBOX_WORKSPACE_DIR = "/home/agent/workspace";
+
 export class SandboxConfig extends Context.Tag("SandboxConfig")<
   SandboxConfig,
   {
@@ -68,7 +71,7 @@ const forceRemoveWorktreeSync = (
 
 /**
  * Worktree sandbox mode: creates a git worktree and bind-mounts it into the
- * container at /workspace. The host's .git directory is also bind-mounted at
+ * container at SANDBOX_WORKSPACE_DIR. The host's .git directory is also bind-mounted at
  * its original host path so the worktree's .git file pointer resolves correctly.
  */
 export const WorktreeDockerSandboxFactory = {
@@ -102,7 +105,7 @@ export const WorktreeDockerSandboxFactory = {
                 Effect.flatMap((worktreeInfo) => {
                   const gitDir = join(hostRepoDir, ".git");
                   const volumeMounts = [
-                    `${worktreeInfo.path}:/workspace`,
+                    `${worktreeInfo.path}:${SANDBOX_WORKSPACE_DIR}`,
                     `${gitDir}:${gitDir}`,
                   ];
 
@@ -117,7 +120,7 @@ export const WorktreeDockerSandboxFactory = {
 
                   return startContainer(containerName, imageName, env, {
                     volumeMounts,
-                    workdir: "/workspace",
+                    workdir: SANDBOX_WORKSPACE_DIR,
                   }).pipe(
                     Effect.tap(() =>
                       Effect.sync(() => {

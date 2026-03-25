@@ -1,3 +1,5 @@
+import { SANDBOX_WORKSPACE_DIR } from "./SandboxFactory.js";
+
 export interface AgentProvider {
   readonly name: string;
   readonly envManifest: Record<string, string>;
@@ -40,9 +42,9 @@ RUN mkdir -p /home/agent/repos
 
 WORKDIR /home/agent
 
-# In worktree sandbox mode, Sandcastle bind-mounts the git worktree at /workspace
-# and overrides the working directory to /workspace at container start.
-# Structure your Dockerfile so that /workspace can serve as the project root.
+# In worktree sandbox mode, Sandcastle bind-mounts the git worktree at ${SANDBOX_WORKSPACE_DIR}
+# and overrides the working directory to ${SANDBOX_WORKSPACE_DIR} at container start.
+# Structure your Dockerfile so that ${SANDBOX_WORKSPACE_DIR} can serve as the project root.
 ENTRYPOINT ["sleep", "infinity"]
 `;
 

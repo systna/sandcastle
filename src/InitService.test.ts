@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { scaffold } from "./InitService.js";
 import type { AgentProvider } from "./AgentProvider.js";
 import { claudeCodeProvider } from "./AgentProvider.js";
+import { SANDBOX_WORKSPACE_DIR } from "./SandboxFactory.js";
 import { SKELETON_PROMPT } from "./templates.js";
 
 const makeDir = () => mkdtemp(join(tmpdir(), "init-service-"));
@@ -99,7 +100,7 @@ describe("InitService scaffold", () => {
     expect(gitignore).toContain("worktrees/");
   });
 
-  it("Dockerfile template contains /workspace mount comment", async () => {
+  it("Dockerfile template contains workspace mount comment", async () => {
     const dir = await makeDir();
     await scaffold(dir, claudeCodeProvider);
 
@@ -107,7 +108,7 @@ describe("InitService scaffold", () => {
       join(dir, ".sandcastle", "Dockerfile"),
       "utf-8",
     );
-    expect(dockerfile).toContain("/workspace");
+    expect(dockerfile).toContain(SANDBOX_WORKSPACE_DIR);
   });
 
   it("skeleton prompt contains section headers and hints", async () => {

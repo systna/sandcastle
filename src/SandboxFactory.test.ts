@@ -21,6 +21,7 @@ import {
   SandboxFactory,
   WorktreeSandboxConfig,
   WorktreeDockerSandboxFactory,
+  SANDBOX_WORKSPACE_DIR,
 } from "./SandboxFactory.js";
 
 const mockExecFile = vi.mocked(execFile);
@@ -86,7 +87,7 @@ describe("WorktreeDockerSandboxFactory", () => {
     expect(mockCreate).toHaveBeenCalledTimes(1);
   });
 
-  it("starts container with worktree and .git bind-mounts at /workspace", async () => {
+  it("starts container with worktree and .git bind-mounts at SANDBOX_WORKSPACE_DIR", async () => {
     await Effect.runPromise(
       Effect.gen(function* () {
         const factory = yield* SandboxFactory;
@@ -96,11 +97,11 @@ describe("WorktreeDockerSandboxFactory", () => {
 
     const runArgs = capturedArgs().find((args) => args[0] === "run");
     expect(runArgs).toBeDefined();
-    expect(runArgs).toContain(`${worktreePath}:/workspace`);
+    expect(runArgs).toContain(`${worktreePath}:${SANDBOX_WORKSPACE_DIR}`);
     expect(runArgs).toContain(`${hostRepoDir}/.git:${hostRepoDir}/.git`);
   });
 
-  it("sets working directory to /workspace", async () => {
+  it("sets working directory to SANDBOX_WORKSPACE_DIR", async () => {
     await Effect.runPromise(
       Effect.gen(function* () {
         const factory = yield* SandboxFactory;
@@ -111,7 +112,7 @@ describe("WorktreeDockerSandboxFactory", () => {
     const runArgs = capturedArgs().find((args) => args[0] === "run");
     expect(runArgs).toContain("-w");
     const wIndex = runArgs!.indexOf("-w");
-    expect(runArgs![wIndex + 1]).toBe("/workspace");
+    expect(runArgs![wIndex + 1]).toBe(SANDBOX_WORKSPACE_DIR);
   });
 
   it("removes worktree after the effect completes", async () => {
