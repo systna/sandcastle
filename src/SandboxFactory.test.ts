@@ -69,6 +69,40 @@ describe("WorktreeDockerSandboxFactory", () => {
     mockDockerSuccess();
   });
 
+  it("passes branch from config to WorktreeManager.create when branch is specified", async () => {
+    const layerWithBranch = Layer.provide(
+      WorktreeDockerSandboxFactory.layer,
+      Layer.succeed(WorktreeSandboxConfig, {
+        imageName: "test-image",
+        env: {},
+        hostRepoDir,
+        branch: "feature/my-branch",
+      }),
+    );
+
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const factory = yield* SandboxFactory;
+        yield* factory.withSandbox(Effect.void);
+      }).pipe(Effect.provide(layerWithBranch)),
+    );
+
+    expect(mockCreate).toHaveBeenCalledWith(hostRepoDir, {
+      branch: "feature/my-branch",
+    });
+  });
+
+  it("calls create without branch options when no branch in config", async () => {
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const factory = yield* SandboxFactory;
+        yield* factory.withSandbox(Effect.void);
+      }).pipe(Effect.provide(makeLayer())),
+    );
+
+    expect(mockCreate).toHaveBeenCalledWith(hostRepoDir);
+  });
+
   it("creates a worktree before starting the container", async () => {
     await Effect.runPromise(
       Effect.gen(function* () {

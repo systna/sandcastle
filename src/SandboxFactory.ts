@@ -48,6 +48,8 @@ export class WorktreeSandboxConfig extends Context.Tag("WorktreeSandboxConfig")<
     readonly imageName: string;
     readonly env: Record<string, string>;
     readonly hostRepoDir: string;
+    /** When specified, the worktree checks out this branch. Otherwise a temp branch is created. */
+    readonly branch?: string;
   }
 >() {}
 
@@ -78,7 +80,8 @@ export const WorktreeDockerSandboxFactory = {
   layer: Layer.effect(
     SandboxFactory,
     Effect.gen(function* () {
-      const { imageName, env, hostRepoDir } = yield* WorktreeSandboxConfig;
+      const { imageName, env, hostRepoDir, branch } =
+        yield* WorktreeSandboxConfig;
       return {
         skipSync: true,
         withSandbox: <A, E, R>(
@@ -98,7 +101,11 @@ export const WorktreeDockerSandboxFactory = {
             )
               .pipe(
                 Effect.andThen(
-                  Effect.promise(() => WorktreeManager.create(hostRepoDir)),
+                  Effect.promise(() =>
+                    branch
+                      ? WorktreeManager.create(hostRepoDir, { branch })
+                      : WorktreeManager.create(hostRepoDir),
+                  ),
                 ),
               )
               .pipe(
