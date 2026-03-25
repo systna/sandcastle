@@ -6,8 +6,9 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { type DisplayEntry, SilentDisplay } from "./Display.js";
-import { FilesystemSandbox } from "./FilesystemSandbox.js";
-import { Sandbox, type SandboxService } from "./Sandbox.js";
+import { Sandbox, type SandboxService } from "./SandboxFactory.js";
+import { makeLocalSandboxLayer } from "./testSandbox.js";
+import { ExecError } from "./errors.js";
 import { withSandboxLifecycle } from "./SandboxLifecycle.js";
 
 /**
@@ -24,7 +25,7 @@ const makePathTranslatingSandbox = (
     cwd === containerPath ? hostPath : cwd;
 
   const baseSandbox = Effect.runSync(
-    Effect.provide(Sandbox, FilesystemSandbox.layer(hostPath)),
+    Effect.provide(Sandbox, makeLocalSandboxLayer(hostPath)),
   );
 
   return {
@@ -45,9 +46,39 @@ const makePathTranslatingSandbox = (
 
 const execAsync = promisify(exec);
 
+const initRepo = async (dir: string) => {
+  await execAsync("git init -b main", { cwd: dir });
+  await execAsync('git config user.email "test@test.com"', { cwd: dir });
+  await execAsync('git config user.name "Test"', { cwd: dir });
+};
+
+const commitFile = async (
+  dir: string,
+  name: string,
+  content: string,
+  message: string,
+) => {
+  await writeFile(join(dir, name), content);
+  await execAsync(`git add "${name}"`, { cwd: dir });
+  await execAsync(`git commit -m "${message}"`, { cwd: dir });
+};
+
+const getHead = async (dir: string) => {
+  const { stdout } = await execAsync("git rev-parse HEAD", { cwd: dir });
+  return stdout.trim();
+};
+
 const testDisplayLayer = SilentDisplay.layer(
   Ref.unsafeMake<ReadonlyArray<DisplayEntry>>([]),
 );
+
+const setup = async () => {
+  const hostDir = await mkdtemp(join(tmpdir(), "host-"));
+  const sandboxDir = await mkdtemp(join(tmpdir(), "sandbox-"));
+  const sandboxRepoDir = join(sandboxDir, "repo");
+  const layer = makeLocalSandboxLayer(sandboxDir);
+  return { hostDir, sandboxDir, sandboxRepoDir, layer };
+};
 
 describe("withSandboxLifecycle (worktree mode — skipSync: true)", () => {
   const setupWorktree = async () => {
@@ -68,7 +99,7 @@ describe("withSandboxLifecycle (worktree mode — skipSync: true)", () => {
       { cwd: hostDir },
     );
 
-    const layer = FilesystemSandbox.layer(worktreeDir);
+    const layer = makeLocalSandboxLayer(worktreeDir);
     return { hostDir, worktreeDir, layer };
   };
 

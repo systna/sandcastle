@@ -4,7 +4,11 @@ import { Effect } from "effect";
 import type { SandcastleConfig } from "./Config.js";
 import { Display } from "./Display.js";
 import { ExecError, SyncError, type SandboxError } from "./errors.js";
-import { Sandbox, type ExecResult, type SandboxService } from "./Sandbox.js";
+import {
+  Sandbox,
+  type ExecResult,
+  type SandboxService,
+} from "./SandboxFactory.js";
 
 const execOk = (
   sandbox: SandboxService,
