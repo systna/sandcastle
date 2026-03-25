@@ -380,18 +380,6 @@ const runCommand = Command.make(
             message: `${e instanceof Error ? e.message : e}`,
           }),
       });
-
-      if (result.wasCompletionSignalDetected) {
-        yield* d.status(
-          `Run complete: agent finished after ${result.iterationsRun} iteration(s).`,
-          "success",
-        );
-      } else {
-        yield* d.status(
-          `Run complete: reached ${result.iterationsRun} iteration(s) without completion signal.`,
-          "warn",
-        );
-      }
     }),
 );
 

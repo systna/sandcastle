@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import {
+  buildCompletionMessage,
   buildLogFilename,
   defaultImageName,
   printFileDisplayStartup,
@@ -81,6 +82,29 @@ describe("printFileDisplayStartup", () => {
     const allOutput = consoleSpy.mock.calls.flat().join(" ");
     // Bold ANSI escape code
     expect(allOutput).toContain("\u001b[1m");
+  });
+});
+
+describe("buildCompletionMessage", () => {
+  it("returns success message when completion signal was detected", () => {
+    const result = buildCompletionMessage(true, 3);
+    expect(result.message).toBe(
+      "Run complete: agent finished after 3 iteration(s).",
+    );
+    expect(result.severity).toBe("success");
+  });
+
+  it("returns warn message when max iterations reached without signal", () => {
+    const result = buildCompletionMessage(false, 5);
+    expect(result.message).toBe(
+      "Run complete: reached 5 iteration(s) without completion signal.",
+    );
+    expect(result.severity).toBe("warn");
+  });
+
+  it("reflects the correct iteration count for 1 iteration", () => {
+    const result = buildCompletionMessage(true, 1);
+    expect(result.message).toContain("1 iteration(s)");
   });
 });
 

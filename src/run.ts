@@ -4,7 +4,12 @@ import { styleText } from "node:util";
 import { Effect, Layer } from "effect";
 import { getAgentProvider } from "./AgentProvider.js";
 import { readConfig } from "./Config.js";
-import { ClackDisplay, Display, FileDisplay } from "./Display.js";
+import {
+  ClackDisplay,
+  Display,
+  FileDisplay,
+  type Severity,
+} from "./Display.js";
 import { orchestrate } from "./Orchestrator.js";
 import { resolvePrompt } from "./PromptResolver.js";
 import {
@@ -71,6 +76,26 @@ export const buildLogFilename = (
     return `${sanitizeBranchForFilename(targetBranch)}-${sanitized}.log`;
   }
   return `${sanitized}.log`;
+};
+
+/**
+ * Build the completion status message for a run, used in both terminal mode
+ * and log-to-file mode to record the final outcome.
+ */
+export const buildCompletionMessage = (
+  wasCompletionSignalDetected: boolean,
+  iterationsRun: number,
+): { readonly message: string; readonly severity: Severity } => {
+  if (wasCompletionSignalDetected) {
+    return {
+      message: `Run complete: agent finished after ${iterationsRun} iteration(s).`,
+      severity: "success",
+    };
+  }
+  return {
+    message: `Run complete: reached ${iterationsRun} iteration(s) without completion signal.`,
+    severity: "warn",
+  };
 };
 
 export type LoggingOption =
@@ -234,7 +259,7 @@ export const run = async (options: RunOptions): Promise<RunResult> => {
         ? yield* substitutePromptArgs(rawPrompt, options.promptArgs)
         : rawPrompt;
 
-      return yield* orchestrate({
+      const orchestrateResult = yield* orchestrate({
         hostRepoDir,
         sandboxRepoDir: SANDBOX_WORKSPACE_DIR,
         iterations: maxIterations,
@@ -246,6 +271,14 @@ export const run = async (options: RunOptions): Promise<RunResult> => {
         timeoutSeconds: options.timeoutSeconds,
         name: options.name,
       });
+
+      const completion = buildCompletionMessage(
+        orchestrateResult.wasCompletionSignalDetected,
+        orchestrateResult.iterationsRun,
+      );
+      yield* d.status(completion.message, completion.severity);
+
+      return orchestrateResult;
     }).pipe(Effect.provide(runLayer)),
   );
 
