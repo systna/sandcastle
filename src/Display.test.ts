@@ -311,6 +311,25 @@ describe("FileDisplay", () => {
     expect(log).toBe("");
   });
 
+  it("strips [Name] prefix from status messages", async () => {
+    const { logPath, layer } = setup();
+
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const d = yield* Display;
+        yield* d.status("[Implementer #119] Iteration 1/100", "info");
+        yield* d.status("[Implementer #119] Agent started", "success");
+        yield* d.status("No prefix here", "info");
+      }).pipe(Effect.provide(layer)),
+    );
+
+    const log = readLog(logPath);
+    expect(log).toContain("Iteration 1/100");
+    expect(log).toContain("Agent started");
+    expect(log).toContain("No prefix here");
+    expect(log).not.toContain("[Implementer #119]");
+  });
+
   it("writes status messages without ANSI escape codes", async () => {
     const { logPath, layer } = setup();
 

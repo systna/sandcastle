@@ -132,7 +132,8 @@ export const FileDisplay = {
         return {
           intro: () => Effect.void,
 
-          status: (message, _severity) => appendToLog(message),
+          status: (message, _severity) =>
+            appendToLog(message.replace(/^\[[^\]]+\] /, "")),
 
           spinner: (message, effect) =>
             Effect.gen(function* () {
