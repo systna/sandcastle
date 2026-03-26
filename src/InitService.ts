@@ -38,11 +38,19 @@ const TEMPLATES: TemplateMetadata[] = [
 
 export const listTemplates = (): TemplateMetadata[] => TEMPLATES;
 
-export function getNextStepsLines(template: string): string[] {
+export function getNextStepsLines(
+  template: string,
+  provider: AgentProvider,
+): string[] {
+  const envLines = Object.entries(provider.envManifest).map(
+    ([key, description]) => `   - ${key} — ${description}`,
+  );
+  const envStep = ["1. Set the following in .sandcastle/.env:", ...envLines];
+
   if (template === "blank") {
     return [
       "Next steps:",
-      "1. Fill in .sandcastle/.env with your agent credentials",
+      ...envStep,
       "2. Read and customize .sandcastle/prompt.md to describe what you want the agent to do",
       `3. Customize .sandcastle/main.ts — it uses the JS API (\`run()\`) to control how the agent runs`,
       `4. Add "sandcastle": "npx tsx .sandcastle/main.ts" to your package.json scripts`,
@@ -51,7 +59,7 @@ export function getNextStepsLines(template: string): string[] {
   } else {
     return [
       "Next steps:",
-      "1. Fill in .sandcastle/.env with your agent credentials",
+      ...envStep,
       `2. Add "sandcastle": "npx tsx .sandcastle/main.ts" to your package.json scripts`,
       '3. Templates use `copyToSandbox: ["node_modules"]` to copy your host node_modules into the sandbox for fast startup — the `npm install` in the onSandboxReady hook is a safety net for platform-specific binaries. Adjust both if you use a different package manager',
       "4. Read and customize the prompt files in .sandcastle/ — they shape what the agent does",

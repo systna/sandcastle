@@ -167,7 +167,7 @@ const initCommand = Command.make(
       }
 
       // Show template-specific next steps
-      const nextSteps = getNextStepsLines(selectedTemplate);
+      const nextSteps = getNextStepsLines(selectedTemplate, provider);
       for (const [i, line] of nextSteps.entries()) {
         yield* d.text(i === 0 ? line : styleText("dim", line));
       }

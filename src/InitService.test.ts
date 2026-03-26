@@ -326,7 +326,7 @@ describe("InitService scaffold", () => {
 
   describe("getNextStepsLines", () => {
     it("blank template returns steps mentioning .env, main.ts, and JS API (not npx sandcastle run)", () => {
-      const lines = getNextStepsLines("blank");
+      const lines = getNextStepsLines("blank", fakeProvider);
       expect(lines.length).toBeGreaterThanOrEqual(2);
       const joined = lines.join("\n");
       expect(joined).toContain(".sandcastle/.env");
@@ -335,7 +335,7 @@ describe("InitService scaffold", () => {
     });
 
     it("non-blank template returns steps mentioning .env, package.json scripts, and npm run sandcastle", () => {
-      const lines = getNextStepsLines("simple-loop");
+      const lines = getNextStepsLines("simple-loop", fakeProvider);
       const joined = lines.join("\n");
       expect(joined).toContain(".sandcastle/.env");
       expect(joined).toContain("package.json");
@@ -343,56 +343,72 @@ describe("InitService scaffold", () => {
     });
 
     it("non-blank template includes a note about customizing the install command", () => {
-      const lines = getNextStepsLines("simple-loop");
+      const lines = getNextStepsLines("simple-loop", fakeProvider);
       const joined = lines.join("\n");
       expect(joined).toContain("npm install");
       expect(joined).toContain("onSandboxReady");
     });
 
     it("non-blank template mentions copyToSandbox and node_modules", () => {
-      const lines = getNextStepsLines("simple-loop");
+      const lines = getNextStepsLines("simple-loop", fakeProvider);
       const joined = lines.join("\n");
       expect(joined).toContain("copyToSandbox");
       expect(joined).toContain("node_modules");
     });
 
     it("blank template includes a step to customize prompt.md", () => {
-      const lines = getNextStepsLines("blank");
+      const lines = getNextStepsLines("blank", fakeProvider);
       const joined = lines.join("\n");
       expect(joined).toContain("prompt.md");
     });
 
     it("simple-loop template includes a step to read/customize prompt files", () => {
-      const lines = getNextStepsLines("simple-loop");
+      const lines = getNextStepsLines("simple-loop", fakeProvider);
       const joined = lines.join("\n");
       expect(joined).toContain("prompt");
       expect(joined).toMatch(/customiz|review|read/i);
     });
 
     it("sequential-reviewer template includes a step mentioning prompt files", () => {
-      const lines = getNextStepsLines("sequential-reviewer");
+      const lines = getNextStepsLines("sequential-reviewer", fakeProvider);
       const joined = lines.join("\n");
       expect(joined).toContain("prompt");
       expect(joined).toMatch(/customiz|review|read/i);
     });
 
     it("parallel-planner template includes a step mentioning prompt files", () => {
-      const lines = getNextStepsLines("parallel-planner");
+      const lines = getNextStepsLines("parallel-planner", fakeProvider);
       const joined = lines.join("\n");
       expect(joined).toContain("prompt");
       expect(joined).toMatch(/customiz|review|read/i);
     });
 
     it("returns at least 2 numbered steps for blank template", () => {
-      const lines = getNextStepsLines("blank");
+      const lines = getNextStepsLines("blank", fakeProvider);
       const numberedSteps = lines.filter((l) => /^\d+\./.test(l));
       expect(numberedSteps.length).toBeGreaterThanOrEqual(2);
     });
 
     it("returns at least 3 numbered steps for non-blank templates", () => {
-      const lines = getNextStepsLines("simple-loop");
+      const lines = getNextStepsLines("simple-loop", fakeProvider);
       const numberedSteps = lines.filter((l) => /^\d+\./.test(l));
       expect(numberedSteps.length).toBeGreaterThanOrEqual(3);
+    });
+
+    it("lists env var names and descriptions from the provider envManifest", () => {
+      const lines = getNextStepsLines("blank", fakeProvider);
+      const joined = lines.join("\n");
+      expect(joined).toContain("FAKE_TOKEN");
+      expect(joined).toContain("Fake agent token");
+      expect(joined).toContain("FAKE_SECRET");
+      expect(joined).toContain("Fake agent secret");
+    });
+
+    it("lists claude-code provider env vars when using claudeCodeProvider", () => {
+      const lines = getNextStepsLines("blank", claudeCodeProvider);
+      const joined = lines.join("\n");
+      expect(joined).toContain("ANTHROPIC_API_KEY");
+      expect(joined).toContain("GH_TOKEN");
     });
   });
 
