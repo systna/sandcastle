@@ -65,7 +65,7 @@ import { run } from "@ai-hero/sandcastle";
 
 const result = await run({
   // Prompt source — provide one of these, not both:
-  promptFile: ".sandcastle/prompt.md", // path to a prompt file (default: .sandcastle/prompt.md)
+  promptFile: ".sandcastle/prompt.md", // path to a prompt file
   // prompt: "Fix issue #42 in this repo", // OR an inline prompt string
 
   // Values substituted for {{KEY}} placeholders in the prompt.
@@ -132,13 +132,14 @@ Sandcastle uses a flexible prompt system. You write the prompt, and the engine e
 
 ### Prompt resolution
 
-The prompt is resolved from one of three sources (in order of precedence):
+You must provide exactly one of:
 
 1. `prompt: "inline string"` — pass an inline prompt directly via `RunOptions`
 2. `promptFile: "./path/to/prompt.md"` — point to a specific file via `RunOptions`
-3. `.sandcastle/prompt.md` — default location (created by `sandcastle init`)
 
-`prompt` and `promptFile` are mutually exclusive — providing both is an error.
+`prompt` and `promptFile` are mutually exclusive — providing both is an error. If neither is provided, `run()` throws an error asking you to supply one.
+
+> **Convention**: `sandcastle init` scaffolds `.sandcastle/prompt.md` and all templates explicitly reference it via `promptFile: ".sandcastle/prompt.md"`. This is a convention, not an automatic fallback — Sandcastle does not read `.sandcastle/prompt.md` unless you pass it as `promptFile`.
 
 ### Dynamic context with `` !`command` ``
 
@@ -257,7 +258,7 @@ Removes the Docker image.
 | Option             | Type       | Default                       | Description                                                     |
 | ------------------ | ---------- | ----------------------------- | --------------------------------------------------------------- |
 | `prompt`           | string     | —                             | Inline prompt (mutually exclusive with `promptFile`)            |
-| `promptFile`       | string     | `.sandcastle/prompt.md`       | Path to prompt file (mutually exclusive with `prompt`)          |
+| `promptFile`       | string     | —                             | Path to prompt file (mutually exclusive with `prompt`)          |
 | `maxIterations`    | number     | `1`                           | Maximum iterations to run                                       |
 | `hooks`            | object     | —                             | Lifecycle hooks (`onSandboxReady`)                              |
 | `branch`           | string     | —                             | Target branch for sandbox work                                  |
