@@ -168,6 +168,14 @@ describe("InitService scaffold", () => {
     await expect(access(join(configDir, "prompt.md"))).resolves.toBeUndefined();
   });
 
+  it("simple-loop main.ts imports from @ai-hero/sandcastle", async () => {
+    const dir = await makeDir();
+    await runScaffold(dir, fakeProvider, "simple-loop");
+
+    const mainTs = await readFile(join(dir, ".sandcastle", "main.ts"), "utf-8");
+    expect(mainTs).toContain('"@ai-hero/sandcastle"');
+  });
+
   it("simple-loop main.ts contains sandcastle.run() with expected options", async () => {
     const dir = await makeDir();
     await runScaffold(dir, fakeProvider, "simple-loop");
@@ -212,6 +220,17 @@ describe("InitService scaffold", () => {
       await expect(
         access(join(configDir, "review-prompt.md")),
       ).resolves.toBeUndefined();
+    });
+
+    it("main.ts imports from @ai-hero/sandcastle", async () => {
+      const dir = await makeDir();
+      await runScaffold(dir, fakeProvider, "sequential-reviewer");
+
+      const mainTs = await readFile(
+        join(dir, ".sandcastle", "main.ts"),
+        "utf-8",
+      );
+      expect(mainTs).toContain('"@ai-hero/sandcastle"');
     });
 
     it("main.ts calls sandcastle.run() twice per iteration (implement + review)", async () => {
@@ -410,6 +429,17 @@ describe("InitService scaffold", () => {
       );
       expect(mainTs).toContain("npm install");
       expect(mainTs).toContain("sandcastle");
+    });
+
+    it("main.ts imports from @ai-hero/sandcastle", async () => {
+      const dir = await makeDir();
+      await runScaffold(dir, fakeProvider, "parallel-planner");
+
+      const mainTs = await readFile(
+        join(dir, ".sandcastle", "main.ts"),
+        "utf-8",
+      );
+      expect(mainTs).toContain('"@ai-hero/sandcastle"');
     });
 
     it("main.ts references opus for planning and sonnet for execution/merge", async () => {

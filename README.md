@@ -12,7 +12,7 @@ A TypeScript CLI for orchestrating AI coding agents in isolated Docker container
 ## Installation
 
 ```bash
-npm install -g sandcastle
+npm install -g @ai-hero/sandcastle
 ```
 
 ## Quick start
@@ -165,7 +165,7 @@ If any command exits with a non-zero code, the run fails immediately with an err
 Use `{{KEY}}` placeholders in your prompt to inject values from the `promptArgs` option. This is useful for reusing the same prompt file across multiple runs with different parameters.
 
 ```typescript
-import { run } from "sandcastle";
+import { run } from "@ai-hero/sandcastle";
 
 await run({
   promptFile: "./my-prompt.md",
@@ -231,7 +231,7 @@ Save this as `.sandcastle/prompt.md` and run `sandcastle run`.
 Sandcastle exports a programmatic `run()` function for use in Node.js scripts, CI pipelines, or custom tooling.
 
 ```typescript
-import { run } from "sandcastle";
+import { run } from "@ai-hero/sandcastle";
 
 const result = await run({
   promptFile: "./my-prompt.md",

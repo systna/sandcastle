@@ -16,7 +16,7 @@
 // Or add to package.json:
 //   "scripts": { "sandcastle": "npx tsx .sandcastle/main.ts" }
 
-import * as sandcastle from "sandcastle";
+import * as sandcastle from "@ai-hero/sandcastle";
 
 // ---------------------------------------------------------------------------
 // Configuration

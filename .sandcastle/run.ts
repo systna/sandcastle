@@ -1,4 +1,4 @@
-import * as sandcastle from "sandcastle";
+import * as sandcastle from "@ai-hero/sandcastle";
 
 const hooks = {
   onSandboxReady: [{ command: "npm install && npm run build" }],
