@@ -1,5 +1,11 @@
 # @ai-hero/sandcastle
 
+## 0.1.1
+
+### Patch Changes
+
+- 0f61f59: Filter issue lists by `Sandcastle` label in all templates. `sandcastle init` now offers to create the label on the repo.
+
 ## 0.1.0
 
 ### Minor Changes
