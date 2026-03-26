@@ -24,6 +24,9 @@ import {
   substitutePromptArgs,
 } from "./PromptArgumentSubstitution.js";
 
+/** Default maximum number of iterations for a run. */
+export const DEFAULT_MAX_ITERATIONS = 1;
+
 /** Replace characters that are invalid or problematic in file paths with dashes. */
 export const sanitizeBranchForFilename = (branch: string): string =>
   branch.replace(/[/\\:*?"<>|]/g, "-");
@@ -107,7 +110,7 @@ export interface RunOptions {
   readonly prompt?: string;
   /** Path to a prompt file (mutually exclusive with prompt) */
   readonly promptFile?: string;
-  /** Maximum iterations to run (default: 5) */
+  /** Maximum iterations to run (default: 1) */
   readonly maxIterations?: number;
   /** Hooks to run during sandbox lifecycle */
   readonly hooks?: {
@@ -149,7 +152,7 @@ export const run = async (options: RunOptions): Promise<RunResult> => {
   const {
     prompt,
     promptFile,
-    maxIterations = 5,
+    maxIterations = DEFAULT_MAX_ITERATIONS,
     hooks,
     branch,
     model,

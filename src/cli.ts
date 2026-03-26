@@ -11,7 +11,7 @@ import { Display } from "./Display.js";
 import { DEFAULT_MODEL } from "./Orchestrator.js";
 import { buildImage, removeImage } from "./DockerLifecycle.js";
 import { scaffold, listTemplates, getNextStepsLines } from "./InitService.js";
-import { defaultImageName, run } from "./run.js";
+import { DEFAULT_MAX_ITERATIONS, defaultImageName, run } from "./run.js";
 import { getAgentProvider } from "./AgentProvider.js";
 import { AgentError, ConfigDirError, InitError } from "./errors.js";
 import {
@@ -321,12 +321,12 @@ const runCommand = Command.make(
       const hostRepoDir = process.cwd();
       yield* requireConfigDir(hostRepoDir);
 
-      // Read config to resolve iterations: CLI flag > config > default (5)
+      // Read config to resolve iterations: CLI flag > config > default (1)
       const config = yield* readConfig(hostRepoDir);
       const resolvedIterations =
         iterations._tag === "Some"
           ? iterations.value
-          : (config.defaultMaxIterations ?? 5);
+          : (config.defaultMaxIterations ?? DEFAULT_MAX_ITERATIONS);
 
       const resolvedBranch = branch._tag === "Some" ? branch.value : undefined;
       const resolvedModel = model._tag === "Some" ? model.value : undefined;

@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import {
   buildCompletionMessage,
   buildLogFilename,
+  DEFAULT_MAX_ITERATIONS,
   defaultImageName,
   printFileDisplayStartup,
   sanitizeBranchForFilename,
@@ -130,6 +131,12 @@ describe("RunResult", () => {
       branch: "main",
     };
     expect(result.logFilePath).toBeUndefined();
+  });
+});
+
+describe("DEFAULT_MAX_ITERATIONS", () => {
+  it("is 1", () => {
+    expect(DEFAULT_MAX_ITERATIONS).toBe(1);
   });
 });
 
