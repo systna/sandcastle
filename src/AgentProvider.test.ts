@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { claudeCode } from "./AgentProvider.js";
+import { claudeCode, CLAUDE_CODE_SCAFFOLD_CONFIG } from "./AgentProvider.js";
 
 describe("claudeCode factory", () => {
   it("returns a provider with name 'claude-code'", () => {
@@ -7,17 +7,10 @@ describe("claudeCode factory", () => {
     expect(provider.name).toBe("claude-code");
   });
 
-  it("envManifest contains ANTHROPIC_API_KEY and GH_TOKEN but NOT CLAUDE_CODE_OAUTH_TOKEN", () => {
+  it("does not expose envManifest or dockerfileTemplate", () => {
     const provider = claudeCode("claude-opus-4-6");
-    expect(provider.envManifest).not.toHaveProperty("CLAUDE_CODE_OAUTH_TOKEN");
-    expect(provider.envManifest).toHaveProperty("ANTHROPIC_API_KEY");
-    expect(provider.envManifest).toHaveProperty("GH_TOKEN");
-  });
-
-  it("has a non-empty dockerfileTemplate", () => {
-    const provider = claudeCode("claude-opus-4-6");
-    expect(provider.dockerfileTemplate).toContain("FROM");
-    expect(provider.dockerfileTemplate).toContain("claude");
+    expect(provider).not.toHaveProperty("envManifest");
+    expect(provider).not.toHaveProperty("dockerfileTemplate");
   });
 
   it("buildPrintCommand includes the model", () => {
@@ -101,5 +94,22 @@ describe("claudeCode factory", () => {
     expect(provider1.buildPrintCommand("test")).toContain("model-a");
     expect(provider2.buildPrintCommand("test")).toContain("model-b");
     expect(provider1.buildPrintCommand("test")).not.toContain("model-b");
+  });
+});
+
+describe("CLAUDE_CODE_SCAFFOLD_CONFIG", () => {
+  it("envManifest contains ANTHROPIC_API_KEY and GH_TOKEN but NOT CLAUDE_CODE_OAUTH_TOKEN", () => {
+    expect(CLAUDE_CODE_SCAFFOLD_CONFIG.envManifest).not.toHaveProperty(
+      "CLAUDE_CODE_OAUTH_TOKEN",
+    );
+    expect(CLAUDE_CODE_SCAFFOLD_CONFIG.envManifest).toHaveProperty(
+      "ANTHROPIC_API_KEY",
+    );
+    expect(CLAUDE_CODE_SCAFFOLD_CONFIG.envManifest).toHaveProperty("GH_TOKEN");
+  });
+
+  it("has a non-empty dockerfileTemplate", () => {
+    expect(CLAUDE_CODE_SCAFFOLD_CONFIG.dockerfileTemplate).toContain("FROM");
+    expect(CLAUDE_CODE_SCAFFOLD_CONFIG.dockerfileTemplate).toContain("claude");
   });
 });

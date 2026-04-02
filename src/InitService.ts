@@ -2,7 +2,7 @@ import { FileSystem } from "@effect/platform";
 import { Effect } from "effect";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { AgentProvider } from "./AgentProvider.js";
+import type { AgentScaffoldConfig } from "./AgentProvider.js";
 
 const GITIGNORE = `.env
 logs/
@@ -39,9 +39,9 @@ export const listTemplates = (): TemplateMetadata[] => TEMPLATES;
 
 export function getNextStepsLines(
   template: string,
-  provider: AgentProvider,
+  scaffoldConfig: AgentScaffoldConfig,
 ): string[] {
-  const envLines = Object.entries(provider.envManifest).map(
+  const envLines = Object.entries(scaffoldConfig.envManifest).map(
     ([key, description]) => `   - ${key} — ${description}`,
   );
   const envStep = ["1. Set the following in .sandcastle/.env:", ...envLines];
@@ -124,7 +124,7 @@ const copyTemplateFiles = (
 
 export const scaffold = (
   repoDir: string,
-  provider: AgentProvider,
+  scaffoldConfig: AgentScaffoldConfig,
   templateName = "blank",
 ): Effect.Effect<void, Error, FileSystem.FileSystem> =>
   Effect.gen(function* () {
@@ -153,13 +153,13 @@ export const scaffold = (
         fs
           .writeFileString(
             join(configDir, "Dockerfile"),
-            provider.dockerfileTemplate,
+            scaffoldConfig.dockerfileTemplate,
           )
           .pipe(Effect.mapError((e) => new Error(e.message))),
         fs
           .writeFileString(
             join(configDir, ".env.example"),
-            buildEnvExample(provider.envManifest),
+            buildEnvExample(scaffoldConfig.envManifest),
           )
           .pipe(Effect.mapError((e) => new Error(e.message))),
         fs

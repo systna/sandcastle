@@ -10,7 +10,11 @@ import { Display } from "./Display.js";
 import { buildImage, removeImage } from "./DockerLifecycle.js";
 import { scaffold, listTemplates, getNextStepsLines } from "./InitService.js";
 import { defaultImageName } from "./run.js";
-import { claudeCode, DEFAULT_MODEL } from "./AgentProvider.js";
+import {
+  claudeCode,
+  DEFAULT_MODEL,
+  CLAUDE_CODE_SCAFFOLD_CONFIG,
+} from "./AgentProvider.js";
 import { AgentError, ConfigDirError, InitError } from "./errors.js";
 import {
   SandboxFactory,
@@ -75,7 +79,7 @@ const initCommand = Command.make(
       const cwd = process.cwd();
       const imageName = resolveImageName(imageNameFlag, cwd);
 
-      const provider = claudeCode(DEFAULT_MODEL);
+      const scaffoldConfig = CLAUDE_CODE_SCAFFOLD_CONFIG;
 
       // Resolve template: CLI flag > interactive select
       const templates = listTemplates();
@@ -134,7 +138,7 @@ const initCommand = Command.make(
 
       yield* d.spinner(
         "Scaffolding .sandcastle/ config directory...",
-        scaffold(cwd, provider, selectedTemplate).pipe(
+        scaffold(cwd, scaffoldConfig, selectedTemplate).pipe(
           Effect.mapError(
             (e) =>
               new InitError({
@@ -167,7 +171,7 @@ const initCommand = Command.make(
       }
 
       // Show template-specific next steps
-      const nextSteps = getNextStepsLines(selectedTemplate, provider);
+      const nextSteps = getNextStepsLines(selectedTemplate, scaffoldConfig);
       for (const [i, line] of nextSteps.entries()) {
         yield* d.text(i === 0 ? line : styleText("dim", line));
       }

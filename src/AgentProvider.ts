@@ -103,11 +103,15 @@ const parseStreamJsonLine = (line: string): ParsedStreamEvent[] => {
 
 export interface AgentProvider {
   readonly name: string;
-  readonly envManifest: Record<string, string>;
-  readonly dockerfileTemplate: string;
   buildPrintCommand(prompt: string): string;
   buildInteractiveArgs(prompt: string): string[];
   parseStreamLine(line: string): ParsedStreamEvent[];
+}
+
+/** Internal scaffolding configuration — not part of the public API. */
+export interface AgentScaffoldConfig {
+  readonly envManifest: Record<string, string>;
+  readonly dockerfileTemplate: string;
 }
 
 export const DEFAULT_MODEL = "claude-opus-4-6";
@@ -147,15 +151,17 @@ WORKDIR /home/agent
 ENTRYPOINT ["sleep", "infinity"]
 `;
 
-export const claudeCode = (model: string): AgentProvider => ({
-  name: "claude-code",
-
+/** Scaffolding config for Claude Code — used by `init` and CLI, not part of the runtime AgentProvider. */
+export const CLAUDE_CODE_SCAFFOLD_CONFIG: AgentScaffoldConfig = {
   envManifest: {
     ANTHROPIC_API_KEY: "Anthropic API key",
     GH_TOKEN: "GitHub personal access token",
   },
-
   dockerfileTemplate: CLAUDE_CODE_DOCKERFILE,
+};
+
+export const claudeCode = (model: string): AgentProvider => ({
+  name: "claude-code",
 
   buildPrintCommand(prompt: string): string {
     return `claude --print --verbose --dangerously-skip-permissions --output-format stream-json --model ${shellEscape(model)} -p ${shellEscape(prompt)}`;
