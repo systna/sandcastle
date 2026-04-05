@@ -41,10 +41,10 @@ npx sandcastle init
 cp .sandcastle/.env.example .sandcastle/.env
 ```
 
-4. Run the `.sandcastle/main.mts` file with `npx tsx`
+4. Run the `.sandcastle/main.ts` (or `main.mts`) file with `npx tsx`
 
 ```bash
-npx tsx .sandcastle/main.mts
+npx tsx .sandcastle/main.ts
 ```
 
 ```typescript
