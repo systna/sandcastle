@@ -15,11 +15,6 @@ import {
   type BindMountBranchStrategy,
 } from "./SandboxProvider.js";
 import { testIsolated } from "./sandboxes/test-isolated.js";
-import {
-  createIsolatedSandboxProvider,
-  type IsolatedSandboxHandle,
-  type IsolatedBranchStrategy,
-} from "./SandboxProvider.js";
 
 vi.mock("./WorktreeManager.js", () => ({
   create: vi.fn(),
