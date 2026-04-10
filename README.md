@@ -410,7 +410,7 @@ Creates the following files:
 
 Errors if `.sandcastle/` already exists to prevent overwriting customizations.
 
-### `sandcastle build-image`
+### `sandcastle docker build-image`
 
 Rebuilds the Docker image from an existing `.sandcastle/` directory. Use this after modifying the Dockerfile.
 
@@ -419,7 +419,7 @@ Rebuilds the Docker image from an existing `.sandcastle/` directory. Use this af
 | `--image-name` | No       | `sandcastle:<repo-dir-name>` | Docker image name                                                                 |
 | `--dockerfile` | No       | —                            | Path to a custom Dockerfile (build context will be the current working directory) |
 
-### `sandcastle remove-image`
+### `sandcastle docker remove-image`
 
 Removes the Docker image.
 

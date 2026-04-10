@@ -33,16 +33,39 @@ describe("sandcastle CLI", () => {
   it("shows help with --help flag", async () => {
     const { stdout } = await runCli("--help", process.cwd());
     expect(stdout).toContain("sandcastle");
-    expect(stdout).toContain("build-image");
-    expect(stdout).toContain("remove-image");
+    expect(stdout).toContain("docker");
     expect(stdout).toContain("init");
     expect(stdout).not.toContain("run");
     expect(stdout).toContain("interactive");
+    // build-image and remove-image are namespaced under docker, not top-level
+    expect(stdout).toContain("docker build-image");
+    expect(stdout).toContain("docker remove-image");
     // Old command names should not be exposed
     expect(stdout).not.toContain("setup-sandbox");
     expect(stdout).not.toContain("cleanup-sandbox");
     expect(stdout).not.toContain("sync-in");
     expect(stdout).not.toContain("sync-out");
+  });
+
+  it("docker --help shows build-image and remove-image subcommands", async () => {
+    const { stdout } = await runCli("docker --help", process.cwd());
+    expect(stdout).toContain("build-image");
+    expect(stdout).toContain("remove-image");
+  });
+
+  it("docker build-image errors when .sandcastle/ is missing", async () => {
+    const hostDir = await mkdtemp(join(tmpdir(), "cli-host-"));
+    await initRepo(hostDir);
+    await commitFile(hostDir, "hello.txt", "hello", "initial commit");
+
+    try {
+      await runCli("docker build-image", hostDir);
+      expect.fail("Expected command to fail");
+    } catch (err: unknown) {
+      const { stdout, stderr } = err as { stdout: string; stderr: string };
+      const output = stdout + stderr;
+      expect(output).toContain("No .sandcastle/ found");
+    }
   });
 
   it("interactive command errors when .sandcastle/ is missing", async () => {
@@ -95,6 +118,25 @@ describe("sandcastle CLI", () => {
       expect(output).toContain("nonexistent");
       expect(output).toContain("blank");
       expect(output).toContain("simple-loop");
+    }
+  });
+
+  it("old top-level build-image command no longer works", async () => {
+    try {
+      await runCli("build-image", process.cwd());
+      expect.fail("Expected command to fail");
+    } catch (err: unknown) {
+      // Command should fail since build-image is no longer a top-level command
+      expect(err).toBeDefined();
+    }
+  });
+
+  it("old top-level remove-image command no longer works", async () => {
+    try {
+      await runCli("remove-image", process.cwd());
+      expect.fail("Expected command to fail");
+    } catch (err: unknown) {
+      expect(err).toBeDefined();
     }
   });
 

@@ -236,7 +236,7 @@ const initCommand = Command.make(
         yield* d.status("Init complete! Image built successfully.", "success");
       } else {
         yield* d.status(
-          "Init complete! Run `sandcastle build-image` to build the Docker image later.",
+          "Init complete! Run `sandcastle docker build-image` to build the Docker image later.",
           "success",
         );
       }
@@ -463,6 +463,18 @@ const interactiveCommand = Command.make(
     }),
 );
 
+// --- Docker namespace command ---
+
+const dockerCommand = Command.make("docker", {}, () =>
+  Effect.gen(function* () {
+    const d = yield* Display;
+    yield* d.status(
+      "Docker sandbox commands. Use --help to see available subcommands.",
+      "info",
+    );
+  }),
+).pipe(Command.withSubcommands([buildImageCommand, removeImageCommand]));
+
 // --- Root command ---
 
 const rootCommand = Command.make("sandcastle", {}, () =>
@@ -474,12 +486,7 @@ const rootCommand = Command.make("sandcastle", {}, () =>
 );
 
 export const sandcastle = rootCommand.pipe(
-  Command.withSubcommands([
-    initCommand,
-    buildImageCommand,
-    removeImageCommand,
-    interactiveCommand,
-  ]),
+  Command.withSubcommands([initCommand, dockerCommand, interactiveCommand]),
 );
 
 export const cli = Command.run(sandcastle, {
