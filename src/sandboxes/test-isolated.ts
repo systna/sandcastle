@@ -7,7 +7,7 @@
  */
 
 import { execFile, spawn } from "node:child_process";
-import { copyFile, mkdir, mkdtemp, rm } from "node:fs/promises";
+import { copyFile, cp, mkdir, mkdtemp, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { createInterface } from "node:readline";
@@ -22,7 +22,7 @@ import {
  * Create a filesystem-based test isolated sandbox provider.
  *
  * The "sandbox" is a temp directory. `exec` runs shell commands in it,
- * `copyIn`/`copyOut` copy files between host and the temp dir,
+ * `copyIn`/`copyFileOut` copy files between host and the temp dir,
  * and `close` removes the temp dir.
  */
 export const testIsolated = (): IsolatedSandboxProvider =>
@@ -103,11 +103,16 @@ export const testIsolated = (): IsolatedSandboxProvider =>
           hostPath: string,
           sandboxPath: string,
         ): Promise<void> => {
-          await mkdir(dirname(sandboxPath), { recursive: true });
-          await copyFile(hostPath, sandboxPath);
+          const info = await stat(hostPath);
+          if (info.isDirectory()) {
+            await cp(hostPath, sandboxPath, { recursive: true });
+          } else {
+            await mkdir(dirname(sandboxPath), { recursive: true });
+            await copyFile(hostPath, sandboxPath);
+          }
         },
 
-        copyOut: async (
+        copyFileOut: async (
           sandboxPath: string,
           hostPath: string,
         ): Promise<void> => {

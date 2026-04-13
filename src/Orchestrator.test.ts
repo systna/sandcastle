@@ -177,9 +177,9 @@ const makeMockAgentLayer = (
       Effect.flatMap(Sandbox, (real) =>
         real.copyIn(hostPath, sandboxPath),
       ).pipe(Effect.provide(fsLayer)),
-    copyOut: (sandboxPath, hostPath) =>
+    copyFileOut: (sandboxPath, hostPath) =>
       Effect.flatMap(Sandbox, (real) =>
-        real.copyOut(sandboxPath, hostPath),
+        real.copyFileOut(sandboxPath, hostPath),
       ).pipe(Effect.provide(fsLayer)),
   });
 };
@@ -1075,9 +1075,9 @@ describe("Orchestrator tool call display integration", () => {
           Effect.flatMap(Sandbox, (real) =>
             real.copyIn(hostPath, sandboxPath),
           ).pipe(Effect.provide(fsLayer)),
-        copyOut: (sandboxPath, hostPath) =>
+        copyFileOut: (sandboxPath, hostPath) =>
           Effect.flatMap(Sandbox, (real) =>
-            real.copyOut(sandboxPath, hostPath),
+            real.copyFileOut(sandboxPath, hostPath),
           ).pipe(Effect.provide(fsLayer)),
       });
     });
@@ -1148,9 +1148,9 @@ describe("Orchestrator error handling", () => {
             Effect.flatMap(Sandbox, (real) =>
               real.copyIn(hostPath, sandboxPath),
             ).pipe(Effect.provide(fsLayer)),
-          copyOut: (sandboxPath, hostPath) =>
+          copyFileOut: (sandboxPath, hostPath) =>
             Effect.flatMap(Sandbox, (real) =>
-              real.copyOut(sandboxPath, hostPath),
+              real.copyFileOut(sandboxPath, hostPath),
             ).pipe(Effect.provide(fsLayer)),
         });
       },
@@ -1209,9 +1209,9 @@ describe("Orchestrator error handling", () => {
             Effect.flatMap(Sandbox, (real) =>
               real.copyIn(hostPath, sandboxPath),
             ).pipe(Effect.provide(fsLayer)),
-          copyOut: (sandboxPath, hostPath) =>
+          copyFileOut: (sandboxPath, hostPath) =>
             Effect.flatMap(Sandbox, (real) =>
-              real.copyOut(sandboxPath, hostPath),
+              real.copyFileOut(sandboxPath, hostPath),
             ).pipe(Effect.provide(fsLayer)),
         });
       },
@@ -1292,9 +1292,9 @@ describe("Orchestrator error handling", () => {
             Effect.flatMap(Sandbox, (real) =>
               real.copyIn(hostPath, sandboxPath),
             ).pipe(Effect.provide(fsLayer)),
-          copyOut: (sandboxPath, hostPath) =>
+          copyFileOut: (sandboxPath, hostPath) =>
             Effect.flatMap(Sandbox, (real) =>
-              real.copyOut(sandboxPath, hostPath),
+              real.copyFileOut(sandboxPath, hostPath),
             ).pipe(Effect.provide(fsLayer)),
         });
       },
@@ -1371,9 +1371,9 @@ describe("Orchestrator error handling", () => {
             Effect.flatMap(Sandbox, (real) =>
               real.copyIn(hostPath, sandboxPath),
             ).pipe(Effect.provide(fsLayer)),
-          copyOut: (sandboxPath, hostPath) =>
+          copyFileOut: (sandboxPath, hostPath) =>
             Effect.flatMap(Sandbox, (real) =>
-              real.copyOut(sandboxPath, hostPath),
+              real.copyFileOut(sandboxPath, hostPath),
             ).pipe(Effect.provide(fsLayer)),
         });
       },
@@ -1434,9 +1434,9 @@ describe("Orchestrator streaming", () => {
             Effect.flatMap(Sandbox, (real) =>
               real.copyIn(hostPath, sandboxPath),
             ).pipe(Effect.provide(fsLayer)),
-          copyOut: (sandboxPath, hostPath) =>
+          copyFileOut: (sandboxPath, hostPath) =>
             Effect.flatMap(Sandbox, (real) =>
-              real.copyOut(sandboxPath, hostPath),
+              real.copyFileOut(sandboxPath, hostPath),
             ).pipe(Effect.provide(fsLayer)),
         });
       },
@@ -1527,9 +1527,9 @@ describe("Orchestrator streaming", () => {
             Effect.flatMap(Sandbox, (real) =>
               real.copyIn(hostPath, sandboxPath),
             ).pipe(Effect.provide(fsLayer)),
-          copyOut: (sandboxPath, hostPath) =>
+          copyFileOut: (sandboxPath, hostPath) =>
             Effect.flatMap(Sandbox, (real) =>
-              real.copyOut(sandboxPath, hostPath),
+              real.copyFileOut(sandboxPath, hostPath),
             ).pipe(Effect.provide(fsLayer)),
         });
       },
@@ -1587,9 +1587,9 @@ describe("Orchestrator streaming", () => {
             Effect.flatMap(Sandbox, (real) =>
               real.copyIn(hostPath, sandboxPath),
             ).pipe(Effect.provide(fsLayer)),
-          copyOut: (sandboxPath, hostPath) =>
+          copyFileOut: (sandboxPath, hostPath) =>
             Effect.flatMap(Sandbox, (real) =>
-              real.copyOut(sandboxPath, hostPath),
+              real.copyFileOut(sandboxPath, hostPath),
             ).pipe(Effect.provide(fsLayer)),
         });
       },
@@ -1651,9 +1651,9 @@ describe("Orchestrator prompt preprocessing", () => {
             Effect.flatMap(Sandbox, (real) =>
               real.copyIn(hostPath, sandboxPath),
             ).pipe(Effect.provide(fsLayer)),
-          copyOut: (sandboxPath, hostPath) =>
+          copyFileOut: (sandboxPath, hostPath) =>
             Effect.flatMap(Sandbox, (real) =>
-              real.copyOut(sandboxPath, hostPath),
+              real.copyFileOut(sandboxPath, hostPath),
             ).pipe(Effect.provide(fsLayer)),
         });
       },
@@ -1722,9 +1722,9 @@ describe("Orchestrator prompt preprocessing", () => {
             Effect.flatMap(Sandbox, (real) =>
               real.copyIn(hostPath, sandboxPath),
             ).pipe(Effect.provide(fsLayer)),
-          copyOut: (sandboxPath, hostPath) =>
+          copyFileOut: (sandboxPath, hostPath) =>
             Effect.flatMap(Sandbox, (real) =>
-              real.copyOut(sandboxPath, hostPath),
+              real.copyFileOut(sandboxPath, hostPath),
             ).pipe(Effect.provide(fsLayer)),
         });
       },
@@ -2050,9 +2050,9 @@ describe("Orchestrator Display integration", () => {
             Effect.flatMap(Sandbox, (real) =>
               real.copyIn(hostPath, sandboxPath),
             ).pipe(Effect.provide(fsLayer)),
-          copyOut: (sandboxPath, hostPath) =>
+          copyFileOut: (sandboxPath, hostPath) =>
             Effect.flatMap(Sandbox, (real) =>
-              real.copyOut(sandboxPath, hostPath),
+              real.copyFileOut(sandboxPath, hostPath),
             ).pipe(Effect.provide(fsLayer)),
         });
       },
@@ -2122,9 +2122,9 @@ describe("Orchestrator Display integration", () => {
             Effect.flatMap(Sandbox, (real) =>
               real.copyIn(hostPath, sandboxPath),
             ).pipe(Effect.provide(fsLayer)),
-          copyOut: (sandboxPath, hostPath) =>
+          copyFileOut: (sandboxPath, hostPath) =>
             Effect.flatMap(Sandbox, (real) =>
-              real.copyOut(sandboxPath, hostPath),
+              real.copyFileOut(sandboxPath, hostPath),
             ).pipe(Effect.provide(fsLayer)),
         });
       },
@@ -2186,9 +2186,9 @@ describe("Orchestrator Display integration", () => {
             Effect.flatMap(Sandbox, (real) =>
               real.copyIn(hostPath, sandboxPath),
             ).pipe(Effect.provide(fsLayer)),
-          copyOut: (sandboxPath, hostPath) =>
+          copyFileOut: (sandboxPath, hostPath) =>
             Effect.flatMap(Sandbox, (real) =>
-              real.copyOut(sandboxPath, hostPath),
+              real.copyFileOut(sandboxPath, hostPath),
             ).pipe(Effect.provide(fsLayer)),
         });
       },
@@ -2282,9 +2282,9 @@ describe("Orchestrator Display integration", () => {
             Effect.flatMap(Sandbox, (real) =>
               real.copyIn(hostPath, sandboxPath),
             ).pipe(Effect.provide(fsLayer)),
-          copyOut: (sandboxPath, hostPath) =>
+          copyFileOut: (sandboxPath, hostPath) =>
             Effect.flatMap(Sandbox, (real) =>
-              real.copyOut(sandboxPath, hostPath),
+              real.copyFileOut(sandboxPath, hostPath),
             ).pipe(Effect.provide(fsLayer)),
         });
       },
@@ -2399,9 +2399,9 @@ const makeMockPiAgentLayer = (
       Effect.flatMap(Sandbox, (real) =>
         real.copyIn(hostPath, sandboxPath),
       ).pipe(Effect.provide(fsLayer)),
-    copyOut: (sandboxPath, hostPath) =>
+    copyFileOut: (sandboxPath, hostPath) =>
       Effect.flatMap(Sandbox, (real) =>
-        real.copyOut(sandboxPath, hostPath),
+        real.copyFileOut(sandboxPath, hostPath),
       ).pipe(Effect.provide(fsLayer)),
   });
 };
@@ -2538,9 +2538,9 @@ describe("Orchestrator with pi provider", () => {
         Effect.flatMap(Sandbox, (real) =>
           real.copyIn(hostPath, sandboxPath),
         ).pipe(Effect.provide(fsLayer)),
-      copyOut: (sandboxPath, hostPath) =>
+      copyFileOut: (sandboxPath, hostPath) =>
         Effect.flatMap(Sandbox, (real) =>
-          real.copyOut(sandboxPath, hostPath),
+          real.copyFileOut(sandboxPath, hostPath),
         ).pipe(Effect.provide(fsLayer)),
     });
 
@@ -2625,9 +2625,9 @@ describe("Orchestrator with pi provider", () => {
         Effect.flatMap(Sandbox, (real) =>
           real.copyIn(hostPath, sandboxPath),
         ).pipe(Effect.provide(fsLayer)),
-      copyOut: (sandboxPath, hostPath) =>
+      copyFileOut: (sandboxPath, hostPath) =>
         Effect.flatMap(Sandbox, (real) =>
-          real.copyOut(sandboxPath, hostPath),
+          real.copyFileOut(sandboxPath, hostPath),
         ).pipe(Effect.provide(fsLayer)),
     });
 
@@ -2724,9 +2724,9 @@ const makeMockCodexAgentLayer = (
       Effect.flatMap(Sandbox, (real) =>
         real.copyIn(hostPath, sandboxPath),
       ).pipe(Effect.provide(fsLayer)),
-    copyOut: (sandboxPath, hostPath) =>
+    copyFileOut: (sandboxPath, hostPath) =>
       Effect.flatMap(Sandbox, (real) =>
-        real.copyOut(sandboxPath, hostPath),
+        real.copyFileOut(sandboxPath, hostPath),
       ).pipe(Effect.provide(fsLayer)),
   });
 };

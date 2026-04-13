@@ -44,12 +44,14 @@ export interface SandboxService {
     options?: { cwd?: string },
   ) => Effect.Effect<ExecResult, ExecError>;
 
+  /** Copy a file or directory from the host into the sandbox. */
   readonly copyIn: (
     hostPath: string,
     sandboxPath: string,
   ) => Effect.Effect<void, CopyError>;
 
-  readonly copyOut: (
+  /** Copy a single file from the sandbox to the host. */
+  readonly copyFileOut: (
     sandboxPath: string,
     hostPath: string,
   ) => Effect.Effect<void, CopyError>;
@@ -62,8 +64,8 @@ export class Sandbox extends Context.Tag("Sandbox")<
 
 /**
  * Wrap a Promise-based sandbox handle into an Effect-based SandboxService layer.
- * Works with both bind-mount handles (copyIn/copyOut unsupported) and
- * isolated handles (copyIn/copyOut delegated to the handle).
+ * Works with both bind-mount handles (copyIn/copyFileOut unsupported) and
+ * isolated handles (copyIn/copyFileOut delegated to the handle).
  */
 export const makeSandboxLayerFromHandle = (
   handle: BindMountSandboxHandle | IsolatedSandboxHandle,
@@ -104,21 +106,21 @@ export const makeSandboxLayerFromHandle = (
                   "copyIn is not supported for bind-mount sandbox providers",
               }),
             ),
-    copyOut:
-      "copyOut" in handle
+    copyFileOut:
+      "copyFileOut" in handle
         ? (sandboxPath, hostPath) =>
             Effect.tryPromise({
-              try: () => handle.copyOut(sandboxPath, hostPath),
+              try: () => handle.copyFileOut(sandboxPath, hostPath),
               catch: (e) =>
                 new CopyError({
-                  message: `copyOut failed: ${e instanceof Error ? e.message : String(e)}`,
+                  message: `copyFileOut failed: ${e instanceof Error ? e.message : String(e)}`,
                 }),
             })
         : () =>
             Effect.fail(
               new CopyError({
                 message:
-                  "copyOut is not supported for bind-mount sandbox providers",
+                  "copyFileOut is not supported for bind-mount sandbox providers",
               }),
             ),
   });

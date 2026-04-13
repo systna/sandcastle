@@ -134,9 +134,9 @@ const makeMockAgentLayer = (
       Effect.flatMap(Sandbox, (real) =>
         real.copyIn(hostPath, sandboxPath),
       ).pipe(Effect.provide(fsLayer)),
-    copyOut: (sandboxPath, hostPath) =>
+    copyFileOut: (sandboxPath, hostPath) =>
       Effect.flatMap(Sandbox, (real) =>
-        real.copyOut(sandboxPath, hostPath),
+        real.copyFileOut(sandboxPath, hostPath),
       ).pipe(Effect.provide(fsLayer)),
   });
 };

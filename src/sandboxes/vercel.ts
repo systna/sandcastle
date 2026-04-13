@@ -6,8 +6,10 @@
  *   await run({ agent: claudeCode("claude-opus-4-6"), sandbox: vercel() });
  */
 
-import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { dirname } from "node:path";
+import { execSync } from "node:child_process";
+import { readFile, unlink, writeFile, mkdir, stat } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { Writable } from "node:stream";
 import {
   createIsolatedSandboxProvider,
@@ -236,11 +238,36 @@ export const vercel = (options?: VercelOptions): IsolatedSandboxProvider =>
           hostPath: string,
           sandboxPath: string,
         ): Promise<void> => {
-          const content = await readFile(hostPath);
-          await sandbox.writeFiles([{ path: sandboxPath, content }]);
+          const info = await stat(hostPath);
+          if (info.isDirectory()) {
+            const tarPath = join(
+              tmpdir(),
+              `sandcastle-copyin-${Date.now()}.tar.gz`,
+            );
+            execSync(`tar -czf "${tarPath}" -C "${hostPath}" .`);
+            try {
+              const tarContent = await readFile(tarPath);
+              const sandboxTarPath = `/tmp/sandcastle-copyin-${Date.now()}.tar.gz`;
+              await sandbox.writeFiles([
+                { path: sandboxTarPath, content: tarContent },
+              ]);
+              await sandbox.runCommand({
+                cmd: "sh",
+                args: [
+                  "-c",
+                  `mkdir -p "${sandboxPath}" && tar -xzf "${sandboxTarPath}" -C "${sandboxPath}" && rm -f "${sandboxTarPath}"`,
+                ],
+              });
+            } finally {
+              await unlink(tarPath).catch(() => {});
+            }
+          } else {
+            const content = await readFile(hostPath);
+            await sandbox.writeFiles([{ path: sandboxPath, content }]);
+          }
         },
 
-        copyOut: async (
+        copyFileOut: async (
           sandboxPath: string,
           hostPath: string,
         ): Promise<void> => {

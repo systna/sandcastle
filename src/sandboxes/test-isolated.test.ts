@@ -1,4 +1,10 @@
-import { existsSync, mkdtempSync, writeFileSync, readFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  writeFileSync,
+  readFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -77,7 +83,7 @@ describe("testIsolated()", () => {
     }
   });
 
-  it("can copyOut a file from sandbox to host", async () => {
+  it("can copyFileOut a file from sandbox to host", async () => {
     const provider = testIsolated();
     const handle = await provider.create({ env: {} });
     try {
@@ -88,11 +94,36 @@ describe("testIsolated()", () => {
       const hostDir = mkdtempSync(join(tmpdir(), "test-host-"));
       const hostFile = join(hostDir, "output.txt");
       const sandboxFile = join(handle.workspacePath, "output.txt");
-      await handle.copyOut(sandboxFile, hostFile);
+      await handle.copyFileOut(sandboxFile, hostFile);
 
       // Verify it exists on the host
       const content = readFileSync(hostFile, "utf-8");
       expect(content.trim()).toBe("hello from sandbox");
+    } finally {
+      await handle.close();
+    }
+  });
+
+  it("can copyIn a directory recursively from host to sandbox", async () => {
+    const provider = testIsolated();
+    const handle = await provider.create({ env: {} });
+    try {
+      // Create a directory tree on the "host"
+      const hostDir = mkdtempSync(join(tmpdir(), "test-host-"));
+      const srcDir = join(hostDir, "mydir");
+      mkdirSync(join(srcDir, "sub"), { recursive: true });
+      writeFileSync(join(srcDir, "a.txt"), "file-a");
+      writeFileSync(join(srcDir, "sub", "b.txt"), "file-b");
+
+      // Copy directory into sandbox
+      const sandboxDir = join(handle.workspacePath, "mydir");
+      await handle.copyIn(srcDir, sandboxDir);
+
+      // Verify both files exist
+      const resultA = await handle.exec("cat mydir/a.txt");
+      expect(resultA.stdout.trim()).toBe("file-a");
+      const resultB = await handle.exec("cat mydir/sub/b.txt");
+      expect(resultB.stdout.trim()).toBe("file-b");
     } finally {
       await handle.close();
     }

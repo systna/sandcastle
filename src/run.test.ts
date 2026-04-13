@@ -263,7 +263,7 @@ describe("branchStrategy on RunOptions", () => {
         exec: async () => ({ stdout: "", stderr: "", exitCode: 0 }),
         execStreaming: async () => ({ stdout: "", stderr: "", exitCode: 0 }),
         copyIn: async () => {},
-        copyOut: async () => {},
+        copyFileOut: async () => {},
         close: async () => {},
       }),
     });

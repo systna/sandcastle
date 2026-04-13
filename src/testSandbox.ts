@@ -121,7 +121,7 @@ export const makeLocalSandboxLayer = (
           }),
       }),
 
-    copyOut: (sandboxPath, hostPath) =>
+    copyFileOut: (sandboxPath, hostPath) =>
       Effect.tryPromise({
         try: async () => {
           await mkdir(dirname(hostPath), { recursive: true });

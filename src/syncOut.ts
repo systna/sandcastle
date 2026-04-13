@@ -11,7 +11,7 @@
  * Three-prong extraction within each phase:
  * 1. Committed changes: `git format-patch` + `git am --3way`
  * 2. Uncommitted changes (staged + unstaged): `git diff HEAD` + `git apply`
- * 3. Untracked files: `git ls-files --others` + `copyOut` each file
+ * 3. Untracked files: `git ls-files --others` + `copyFileOut` each file
  */
 
 import { existsSync } from "node:fs";
@@ -237,7 +237,7 @@ export const syncOut = (
           const sandboxPatchPath = `${sandboxPatchDir}/${patchName}`;
           const hostPatchPath = join(patchDir, patchName);
           yield* Effect.tryPromise({
-            try: () => handle.copyOut(sandboxPatchPath, hostPatchPath),
+            try: () => handle.copyFileOut(sandboxPatchPath, hostPatchPath),
             catch: (e) =>
               new SyncError({
                 message: `Failed to copy patch ${patchName}: ${e instanceof Error ? e.message : String(e)}`,
@@ -274,7 +274,7 @@ export const syncOut = (
         yield* Effect.tryPromise({
           try: async () => {
             await mkdir(dirname(hostFilePath), { recursive: true });
-            await handle.copyOut(sandboxFilePath, hostFilePath);
+            await handle.copyFileOut(sandboxFilePath, hostFilePath);
           },
           catch: (e) =>
             new SyncError({

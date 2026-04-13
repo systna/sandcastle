@@ -40,7 +40,7 @@ const makePathTranslatingSandbox = (
         cwd: translateCwd(options?.cwd),
       }),
     copyIn: (hp, sp) => baseSandbox.copyIn(hp, sp),
-    copyOut: (sp, hp) => baseSandbox.copyOut(sp, hp),
+    copyFileOut: (sp, hp) => baseSandbox.copyFileOut(sp, hp),
   };
 };
 

@@ -68,10 +68,10 @@ export interface IsolatedSandboxHandle {
     onLine: (line: string) => void,
     options?: { cwd?: string },
   ): Promise<ExecResult>;
-  /** Copy a file from the host into the sandbox. */
+  /** Copy a file or directory from the host into the sandbox. */
   copyIn(hostPath: string, sandboxPath: string): Promise<void>;
-  /** Copy a file from the sandbox to the host. */
-  copyOut(sandboxPath: string, hostPath: string): Promise<void>;
+  /** Copy a single file from the sandbox to the host. */
+  copyFileOut(sandboxPath: string, hostPath: string): Promise<void>;
   /** Tear down the sandbox. */
   close(): Promise<void>;
 }

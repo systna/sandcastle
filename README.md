@@ -509,20 +509,20 @@ Environment variables are also resolved automatically from `.sandcastle/.env` an
 Sandcastle ships with a Docker provider, but you can create your own. A sandbox provider tells Sandcastle how to execute commands in an isolated environment. There are two kinds:
 
 - **Bind-mount** — the sandbox can mount a host directory. Sandcastle creates a worktree on the host and the provider mounts it in. No file sync needed. Use this for Docker, Podman, or any local container runtime.
-- **Isolated** — the sandbox has its own filesystem (e.g. a cloud VM). The provider handles syncing code in and out via `copyIn` and `copyOut`. Use this when the sandbox cannot access the host filesystem.
+- **Isolated** — the sandbox has its own filesystem (e.g. a cloud VM). The provider handles syncing code in and out via `copyIn` and `copyFileOut`. Use this when the sandbox cannot access the host filesystem.
 
 ### The sandbox handle contract
 
 Both provider types return a **sandbox handle** from their `create()` function. The handle exposes:
 
-| Method          | Required | Description                                       |
-| --------------- | -------- | ------------------------------------------------- |
-| `exec`          | Both     | Run a command, return `ExecResult` when done      |
-| `execStreaming` | Both     | Run a command, call `onLine` for each stdout line |
-| `close`         | Both     | Tear down the sandbox                             |
-| `copyIn`        | Isolated | Copy a file from the host into the sandbox        |
-| `copyOut`       | Isolated | Copy a file from the sandbox to the host          |
-| `workspacePath` | Both     | Absolute path to the workspace inside the sandbox |
+| Method          | Required | Description                                             |
+| --------------- | -------- | ------------------------------------------------------- |
+| `exec`          | Both     | Run a command, return `ExecResult` when done            |
+| `execStreaming` | Both     | Run a command, call `onLine` for each stdout line       |
+| `close`         | Both     | Tear down the sandbox                                   |
+| `copyIn`        | Isolated | Copy a file or directory from the host into the sandbox |
+| `copyFileOut`   | Isolated | Copy a single file from the sandbox to the host         |
+| `workspacePath` | Both     | Absolute path to the workspace inside the sandbox       |
 
 ### `ExecResult`
 
@@ -705,11 +705,16 @@ const tempDir = () =>
           }),
 
         copyIn: async (hostPath: string, sandboxPath: string) => {
-          await mkdir(dirname(sandboxPath), { recursive: true });
-          await copyFile(hostPath, sandboxPath);
+          const info = await stat(hostPath);
+          if (info.isDirectory()) {
+            await cp(hostPath, sandboxPath, { recursive: true });
+          } else {
+            await mkdir(dirname(sandboxPath), { recursive: true });
+            await copyFile(hostPath, sandboxPath);
+          }
         },
 
-        copyOut: async (sandboxPath: string, hostPath: string) => {
+        copyFileOut: async (sandboxPath: string, hostPath: string) => {
           await mkdir(dirname(hostPath), { recursive: true });
           await copyFile(sandboxPath, hostPath);
         },

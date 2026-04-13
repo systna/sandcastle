@@ -713,6 +713,38 @@ describe("WorktreeDockerSandboxFactory — isolated providers", () => {
     expect(fileContent).toBe("hello world");
   });
 
+  it("copies copyToSandbox directories into the isolated sandbox via copyIn", async () => {
+    const hostDir = await mkdtemp(join(tmpdir(), "sandcastle-test-"));
+    tempDirs.push(hostDir);
+    await initRepo(hostDir);
+    await commitFile(hostDir, "hello.txt", "hello", "initial");
+
+    // Create a directory to copy (not tracked by git)
+    await mkdir(join(hostDir, "config", "nested"), { recursive: true });
+    await writeFile(join(hostDir, "config", "a.json"), '{"a":1}');
+    await writeFile(join(hostDir, "config", "nested", "b.json"), '{"b":2}');
+
+    let contentA = "";
+    let contentB = "";
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const factory = yield* SandboxFactory;
+        yield* factory.withSandbox(() =>
+          Effect.gen(function* () {
+            const sandbox = yield* Sandbox;
+            contentA = (yield* sandbox.exec("cat config/a.json")).stdout.trim();
+            contentB = (yield* sandbox.exec(
+              "cat config/nested/b.json",
+            )).stdout.trim();
+          }),
+        );
+      }).pipe(Effect.provide(makeIsolatedLayer(hostDir, ["config"]))),
+    );
+
+    expect(contentA).toBe('{"a":1}');
+    expect(contentB).toBe('{"b":2}');
+  });
+
   it("skips missing copyToSandbox paths without error", async () => {
     const hostDir = await mkdtemp(join(tmpdir(), "sandcastle-test-"));
     tempDirs.push(hostDir);

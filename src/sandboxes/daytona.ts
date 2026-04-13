@@ -5,6 +5,8 @@
  * Requires `@daytona/sdk` as a peer dependency.
  */
 
+import { readdir, stat } from "node:fs/promises";
+import { join, relative } from "node:path";
 import {
   createIsolatedSandboxProvider,
   type ExecResult,
@@ -167,10 +169,32 @@ export const daytona = (options?: DaytonaOptions): IsolatedSandboxProvider =>
           hostPath: string,
           sandboxPath: string,
         ): Promise<void> => {
-          await sandbox.fs.uploadFile(hostPath, sandboxPath);
+          const info = await stat(hostPath);
+          if (info.isDirectory()) {
+            const walk = async (dir: string): Promise<string[]> => {
+              const entries = await readdir(dir, { withFileTypes: true });
+              const files: string[] = [];
+              for (const entry of entries) {
+                const full = join(dir, entry.name);
+                if (entry.isDirectory()) {
+                  files.push(...(await walk(full)));
+                } else {
+                  files.push(full);
+                }
+              }
+              return files;
+            };
+            const files = await walk(hostPath);
+            for (const file of files) {
+              const rel = relative(hostPath, file);
+              await sandbox.fs.uploadFile(file, join(sandboxPath, rel));
+            }
+          } else {
+            await sandbox.fs.uploadFile(hostPath, sandboxPath);
+          }
         },
 
-        copyOut: async (
+        copyFileOut: async (
           sandboxPath: string,
           hostPath: string,
         ): Promise<void> => {
