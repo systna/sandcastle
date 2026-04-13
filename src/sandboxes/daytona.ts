@@ -5,7 +5,7 @@
  * Requires `@daytona/sdk` as a peer dependency.
  */
 
-import { stat } from "node:fs/promises";
+import { readdir, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
 import {
   createIsolatedSandboxProvider,
@@ -171,7 +171,6 @@ export const daytona = (options?: DaytonaOptions): IsolatedSandboxProvider =>
         ): Promise<void> => {
           const info = await stat(hostPath);
           if (info.isDirectory()) {
-            const { readdir } = await import("node:fs/promises");
             const walk = async (dir: string): Promise<string[]> => {
               const entries = await readdir(dir, { withFileTypes: true });
               const files: string[] = [];

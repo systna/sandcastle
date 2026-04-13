@@ -6,8 +6,10 @@
  *   await run({ agent: claudeCode("claude-opus-4-6"), sandbox: vercel() });
  */
 
-import { readFile, writeFile, mkdir, stat } from "node:fs/promises";
-import { dirname } from "node:path";
+import { execSync } from "node:child_process";
+import { readFile, unlink, writeFile, mkdir, stat } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { Writable } from "node:stream";
 import {
   createIsolatedSandboxProvider,
@@ -238,10 +240,6 @@ export const vercel = (options?: VercelOptions): IsolatedSandboxProvider =>
         ): Promise<void> => {
           const info = await stat(hostPath);
           if (info.isDirectory()) {
-            // Tar directory on host, transfer archive, extract in sandbox
-            const { execSync } = await import("node:child_process");
-            const { tmpdir } = await import("node:os");
-            const { join } = await import("node:path");
             const tarPath = join(
               tmpdir(),
               `sandcastle-copyin-${Date.now()}.tar.gz`,
@@ -261,7 +259,6 @@ export const vercel = (options?: VercelOptions): IsolatedSandboxProvider =>
                 ],
               });
             } finally {
-              const { unlink } = await import("node:fs/promises");
               await unlink(tarPath).catch(() => {});
             }
           } else {
