@@ -12,6 +12,10 @@ When writing sandbox providers, don't use any shared abstractions between them. 
 
 ---
 
+Any public-facing properties or functions should have JSDOC comments explaining them.
+
+---
+
 ## Testing
 
 ### Core Principle
