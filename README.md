@@ -8,18 +8,22 @@
 
 ## What Is Sandcastle?
 
-A TypeScript library for orchestrating AI coding agents in isolated Docker containers:
+A TypeScript library for orchestrating AI coding agents in isolated sandboxes:
 
 1. You invoke agents with a single `sandcastle.run()`.
 2. Sandcastle handles sandboxing the agent with a configurable branch strategy.
 3. The commits made on the branches get merged back.
 
-Great for parallelizing multiple AFK agents, creating review pipelines, or even just orchestrating your own agents.
+Sandcastle is provider-agnostic — it ships with built-in providers for Docker, Podman, and Vercel, and you can create your own. Great for parallelizing multiple AFK agents, creating review pipelines, or even just orchestrating your own agents.
 
 ## Prerequisites
 
-- [Docker Desktop](https://www.docker.com/)
 - [Git](https://git-scm.com/)
+- A sandbox provider — Sandcastle needs an isolated environment to run agents in. Built-in options:
+  - [Docker Desktop](https://www.docker.com/) — most common for local development
+  - [Podman](https://podman.io/) — rootless alternative to Docker
+  - [Vercel](https://vercel.com/) — cloud-based Firecracker microVMs via `@vercel/sandbox`
+  - Or [create your own](#custom-sandbox-providers) using `createBindMountSandboxProvider` or `createIsolatedSandboxProvider`
 
 ## Quick start
 
@@ -54,14 +58,49 @@ import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 
 await run({
   agent: claudeCode("claude-opus-4-6"),
-  sandbox: docker(),
+  sandbox: docker(), // or podman(), vercel(), or your own provider
   promptFile: ".sandcastle/prompt.md",
 });
 ```
 
+## Sandbox Providers
+
+Sandcastle uses a `SandboxProvider` to create isolated environments. The `sandbox` option on `run()` and `createSandbox()` accepts any provider. Three are built in:
+
+| Provider | Import path                            | Type       |
+| -------- | -------------------------------------- | ---------- |
+| Docker   | `@ai-hero/sandcastle/sandboxes/docker` | Bind-mount |
+| Podman   | `@ai-hero/sandcastle/sandboxes/podman` | Bind-mount |
+| Vercel   | `@ai-hero/sandcastle/sandboxes/vercel` | Isolated   |
+
+```typescript
+import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
+import { podman } from "@ai-hero/sandcastle/sandboxes/podman";
+import { vercel } from "@ai-hero/sandcastle/sandboxes/vercel";
+
+// All three are interchangeable in run() and createSandbox():
+await run({
+  agent: claudeCode("claude-opus-4-6"),
+  sandbox: docker(),
+  prompt: "...",
+});
+await run({
+  agent: claudeCode("claude-opus-4-6"),
+  sandbox: podman(),
+  prompt: "...",
+});
+await run({
+  agent: claudeCode("claude-opus-4-6"),
+  sandbox: vercel(),
+  prompt: "...",
+});
+```
+
+You can also [create your own provider](#custom-sandbox-providers) using `createBindMountSandboxProvider` or `createIsolatedSandboxProvider`.
+
 ## API
 
-Sandcastle exports a programmatic `run()` function for use in scripts, CI pipelines, or custom tooling.
+Sandcastle exports a programmatic `run()` function for use in scripts, CI pipelines, or custom tooling. The examples below use `docker()`, but any `SandboxProvider` works in its place.
 
 ```typescript
 import { run, claudeCode } from "@ai-hero/sandcastle";
@@ -89,7 +128,7 @@ const result = await run({
   // Optional second arg for provider-specific options like effort level.
   agent: claudeCode("claude-opus-4-6", { effort: "high" }),
 
-  // Sandbox provider — required. Import from "@ai-hero/sandcastle/sandboxes/docker".
+  // Sandbox provider — required. Any SandboxProvider works (docker, podman, vercel, or custom).
   // Provider-specific config (like imageName, mounts) lives inside the provider factory call.
   sandbox: docker({
     imageName: "sandcastle:local",
@@ -506,7 +545,7 @@ Environment variables are also resolved automatically from `.sandcastle/.env` an
 
 ## Custom Sandbox Providers
 
-Sandcastle ships with a Docker provider, but you can create your own. A sandbox provider tells Sandcastle how to execute commands in an isolated environment. There are two kinds:
+Sandcastle ships with built-in providers for Docker, Podman, and Vercel, but you can create your own. A sandbox provider tells Sandcastle how to execute commands in an isolated environment. There are two kinds:
 
 - **Bind-mount** — the sandbox can mount a host directory. Sandcastle creates a worktree on the host and the provider mounts it in. No file sync needed. Use this for Docker, Podman, or any local container runtime.
 - **Isolated** — the sandbox has its own filesystem (e.g. a cloud VM). The provider handles syncing code in and out via `copyIn` and `copyFileOut`. Use this when the sandbox cannot access the host filesystem.
