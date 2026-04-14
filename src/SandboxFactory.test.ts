@@ -558,7 +558,7 @@ describe("WorktreeDockerSandboxFactory", () => {
       expect(result.value).toBe("done");
     });
 
-    it("does not pass hostWorktreePath to the effect", async () => {
+    it("passes hostWorktreePath pointing to host repo dir", async () => {
       let receivedInfo: { hostWorktreePath?: string } | undefined;
       await Effect.runPromise(
         Effect.gen(function* () {
@@ -570,7 +570,7 @@ describe("WorktreeDockerSandboxFactory", () => {
         }).pipe(Effect.provide(makeHeadLayer())),
       );
 
-      expect(receivedInfo?.hostWorktreePath).toBeUndefined();
+      expect(receivedInfo?.hostWorktreePath).toBe(hostRepoDir);
     });
   });
 
