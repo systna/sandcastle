@@ -20,23 +20,38 @@ export const preprocessPrompt = (
     const display = yield* Display;
     return yield* display.taskLog("Expanding shell expressions", (message) =>
       Effect.gen(function* () {
-        let result = prompt;
-        // Process matches in reverse order to preserve indices
-        for (const match of [...matches].reverse()) {
-          const command = match[1]!;
-          const index = match.index!;
-          message(command);
-          const execResult = yield* sandbox.exec(command, { cwd });
-          if (execResult.exitCode !== 0) {
-            return yield* Effect.fail(
-              new PromptError({
-                message: `Command \`${command}\` exited with code ${execResult.exitCode}: ${execResult.stderr}`,
-              }),
+        // Log all commands upfront in document order
+        for (const match of matches) {
+          message(match[1]!);
+        }
+
+        // Execute all commands in parallel
+        const results = yield* Effect.all(
+          matches.map((match) => {
+            const command = match[1]!;
+            return Effect.flatMap(
+              sandbox.exec(command, { cwd }),
+              (execResult) =>
+                execResult.exitCode !== 0
+                  ? Effect.fail(
+                      new PromptError({
+                        message: `Command \`${command}\` exited with code ${execResult.exitCode}: ${execResult.stderr}`,
+                      }),
+                    )
+                  : Effect.succeed(execResult.stdout.trimEnd()),
             );
-          }
+          }),
+          { concurrency: "unbounded" },
+        );
+
+        // Replace all matches using original indices (process in reverse to preserve positions)
+        let result = prompt;
+        for (let i = matches.length - 1; i >= 0; i--) {
+          const match = matches[i]!;
+          const index = match.index!;
           result =
             result.slice(0, index) +
-            execResult.stdout.trimEnd() +
+            results[i] +
             result.slice(index + match[0].length);
         }
         return result;

@@ -231,6 +231,55 @@ describe("withSandboxLifecycle (worktree mode)", () => {
     expect(hookCalls[1]!.options?.sudo).toBe(true);
   });
 
+  it("onSandboxReady hooks run in parallel", async () => {
+    const { hostDir, worktreeDir } = await setupWorktree();
+
+    // Track the order of start/end events to verify parallel execution
+    const events: string[] = [];
+
+    const spySandboxLayer = Layer.succeed(Sandbox, {
+      exec: (command, options) => {
+        if (command === "slow-hook-a" || command === "slow-hook-b") {
+          events.push(`start:${command}`);
+          return Effect.gen(function* () {
+            // Yield to allow the other hook to start
+            yield* Effect.yieldNow();
+            events.push(`end:${command}`);
+            return { stdout: "", stderr: "", exitCode: 0 };
+          });
+        }
+        return Effect.succeed({ stdout: "", stderr: "", exitCode: 0 });
+      },
+      copyIn: () => Effect.succeed(undefined as never),
+      copyFileOut: () => Effect.succeed(undefined as never),
+    });
+
+    await Effect.runPromise(
+      withSandboxLifecycle(
+        {
+          hostRepoDir: hostDir,
+          sandboxRepoDir: worktreeDir,
+          branch: "sandcastle/test",
+          hooks: {
+            onSandboxReady: [
+              { command: "slow-hook-a" },
+              { command: "slow-hook-b" },
+            ],
+          },
+        },
+        () => Effect.succeed("ok"),
+      ).pipe(Effect.provide(Layer.merge(spySandboxLayer, testDisplayLayer))),
+    );
+
+    // With parallel execution, both hooks should start before either ends
+    expect(events).toEqual([
+      "start:slow-hook-a",
+      "start:slow-hook-b",
+      "end:slow-hook-a",
+      "end:slow-hook-b",
+    ]);
+  });
+
   it("returns commits made in the worktree", async () => {
     const { hostDir, worktreeDir, layer } = await setupWorktree();
 

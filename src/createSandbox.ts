@@ -195,12 +195,15 @@ export const createSandbox = async (
         yield* sandbox.exec(
           `git config --global --add safe.directory "${sandboxRepoDir}"`,
         );
-        for (const hook of options.hooks!.onSandboxReady!) {
-          yield* sandbox.exec(hook.command, {
-            cwd: sandboxRepoDir,
-            sudo: hook.sudo,
-          });
-        }
+        yield* Effect.all(
+          options.hooks!.onSandboxReady!.map((hook) =>
+            sandbox.exec(hook.command, {
+              cwd: sandboxRepoDir,
+              sudo: hook.sudo,
+            }),
+          ),
+          { concurrency: "unbounded" },
+        );
       }).pipe(Effect.provide(sandboxLayer)),
     );
   }

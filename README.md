@@ -159,7 +159,7 @@ const result = await run({
   // Display name for this run, shown as a prefix in log output.
   name: "fix-issue-42",
 
-  // Lifecycle hooks — arrays of shell commands run sequentially inside the sandbox.
+  // Lifecycle hooks — arrays of shell commands run in parallel inside the sandbox.
   hooks: {
     // Runs after the sandbox is ready.
     onSandboxReady: [{ command: "npm install" }],
@@ -337,7 +337,7 @@ You must provide exactly one of:
 
 ### Dynamic context with `` !`command` ``
 
-Use `` !`command` `` expressions in your prompt to pull in dynamic context. Each expression is replaced with the command's stdout before the prompt is sent to the agent.
+Use `` !`command` `` expressions in your prompt to pull in dynamic context. Each expression is replaced with the command's stdout before the prompt is sent to the agent. All expressions in a prompt run **in parallel** for faster expansion.
 
 Commands run **inside the sandbox** after `onSandboxReady` hooks complete, so they see the same repo state the agent sees (including installed dependencies).
 
@@ -862,7 +862,7 @@ Add your project-specific dependencies (e.g., language runtimes, build tools) to
 
 ### Hooks
 
-Hooks are arrays of `{ command, sudo? }` objects executed sequentially inside the sandbox. If any command exits with a non-zero code, execution stops immediately with an error.
+Hooks are arrays of `{ command, sudo? }` objects executed **in parallel** inside the sandbox. All commands within a hook point run concurrently — if any command exits with a non-zero code, the operation fails after all commands settle. To enforce ordering between commands, combine them with `&&` in a single command string.
 
 | Hook             | When it runs               | Working directory      |
 | ---------------- | -------------------------- | ---------------------- |

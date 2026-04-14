@@ -129,11 +129,16 @@ export const withSandboxLifecycle = <A>(
         if (hooks?.onSandboxReady?.length) {
           for (const hook of hooks.onSandboxReady) {
             message(hook.command);
-            yield* execOk(sandbox, hook.command, {
-              cwd: sandboxRepoDir,
-              sudo: hook.sudo,
-            });
           }
+          yield* Effect.all(
+            hooks.onSandboxReady.map((hook) =>
+              execOk(sandbox, hook.command, {
+                cwd: sandboxRepoDir,
+                sudo: hook.sudo,
+              }),
+            ),
+            { concurrency: "unbounded" },
+          );
         }
       }),
     );

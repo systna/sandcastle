@@ -76,6 +76,58 @@ describe("PromptPreprocessor", () => {
     expect(result).toBe(`Dir: ${sandboxDir}`);
   });
 
+  it("runs multiple shell expressions in parallel", async () => {
+    const { sandboxDir, layer } = await setup();
+
+    // Track start/end events to verify parallel execution
+    const events: string[] = [];
+
+    const spySandboxLayer = Layer.succeed(Sandbox, {
+      exec: (command, options) =>
+        Effect.gen(function* () {
+          events.push(`start:${command}`);
+          yield* Effect.yieldNow();
+          events.push(`end:${command}`);
+          if (command === "echo hello") {
+            return { stdout: "hello\n", stderr: "", exitCode: 0 };
+          }
+          if (command === "echo world") {
+            return { stdout: "world\n", stderr: "", exitCode: 0 };
+          }
+          return { stdout: "", stderr: "", exitCode: 0 };
+        }),
+      copyIn: () => Effect.succeed(undefined as never),
+      copyFileOut: () => Effect.succeed(undefined as never),
+    });
+
+    const spyLayer = Layer.merge(
+      spySandboxLayer,
+      SilentDisplay.layer(Ref.unsafeMake<ReadonlyArray<DisplayEntry>>([])),
+    );
+
+    const result = await Effect.runPromise(
+      Sandbox.pipe(
+        Effect.flatMap((s) =>
+          preprocessPrompt(
+            "First: !`echo hello`\nSecond: !`echo world`",
+            s,
+            sandboxDir,
+          ),
+        ),
+        Effect.provide(spyLayer),
+      ),
+    );
+
+    expect(result).toBe("First: hello\nSecond: world");
+    // With parallel execution, both commands should start before either ends
+    expect(events).toEqual([
+      "start:echo hello",
+      "start:echo world",
+      "end:echo hello",
+      "end:echo world",
+    ]);
+  });
+
   it("does not show taskLog when prompt has no commands", async () => {
     const { sandboxDir, layer, displayRef } = await setup();
     const prompt = "Just a plain prompt with no commands.";
