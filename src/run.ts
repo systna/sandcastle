@@ -17,6 +17,8 @@ import {
 } from "./SandboxFactory.js";
 import type { SandboxProvider, BranchStrategy } from "./SandboxProvider.js";
 import { resolveEnv } from "./EnvResolver.js";
+import { formatErrorMessage } from "./ErrorHandler.js";
+import type { SandboxError } from "./errors.js";
 import { mergeProviderEnv } from "./mergeProviderEnv.js";
 import { generateTempBranchName, getCurrentBranch } from "./WorktreeManager.js";
 import {
@@ -307,63 +309,83 @@ export const run = async (options: RunOptions): Promise<RunResult> => {
 
   const runLayer = Layer.merge(factoryLayer, displayLayer);
 
+  const baseEffect = Effect.gen(function* () {
+    const d = yield* Display;
+    yield* d.intro(options.name ?? "sandcastle");
+    const rows = buildRunSummaryRows({
+      name: options.name,
+      agentName,
+      sandboxName: options.sandbox.name,
+      maxIterations,
+      branch: resolvedBranch,
+    });
+    yield* d.summary("Sandcastle Run", rows);
+
+    // Validate that the user has not provided built-in prompt argument keys
+    const userArgs = options.promptArgs ?? {};
+    yield* validateNoBuiltInArgOverride(userArgs);
+
+    // Build effective args: built-in args merged with user-provided args.
+    // In none mode, resolvedBranch is already currentHostBranch, so
+    // SOURCE_BRANCH and TARGET_BRANCH both resolve to the host's current branch.
+    const effectiveArgs = {
+      SOURCE_BRANCH: resolvedBranch,
+      TARGET_BRANCH: currentHostBranch,
+      ...userArgs,
+    };
+    const builtInArgKeysSet = new Set<string>(BUILT_IN_PROMPT_ARG_KEYS);
+    const resolvedPrompt = yield* substitutePromptArgs(
+      rawPrompt,
+      effectiveArgs,
+      builtInArgKeysSet,
+    );
+
+    // In head mode, pass the host branch so SandboxLifecycle skips the merge step.
+    // In merge-to-head mode, branch is undefined (triggers merge). In branch mode, it's the explicit branch.
+    const orchestrateBranch =
+      effectiveBranchType === "head" ? currentHostBranch : branch;
+
+    const orchestrateResult = yield* orchestrate({
+      hostRepoDir,
+      iterations: maxIterations,
+      hooks,
+      prompt: resolvedPrompt,
+      branch: orchestrateBranch,
+      provider,
+      completionSignal: options.completionSignal,
+      idleTimeoutSeconds: options.idleTimeoutSeconds,
+      name: options.name,
+    });
+
+    const completion = buildCompletionMessage(
+      orchestrateResult.completionSignal,
+      orchestrateResult.iterationsRun,
+    );
+    yield* d.status(completion.message, completion.severity);
+
+    return orchestrateResult;
+  });
+
+  // In file-logging mode, write errors to the log before they propagate.
+  // In stdout mode (ClackDisplay), errors are already shown by withFriendlyErrors
+  // in main.ts, so we skip to avoid duplicate terminal output.
+  const withErrorLog =
+    resolvedLogging.type === "file"
+      ? baseEffect.pipe(
+          Effect.tapError((error) =>
+            Effect.gen(function* () {
+              const d = yield* Display;
+              yield* d.status(
+                formatErrorMessage(error as SandboxError),
+                "error",
+              );
+            }),
+          ),
+        )
+      : baseEffect;
+
   const result = await Effect.runPromise(
-    Effect.gen(function* () {
-      const d = yield* Display;
-      yield* d.intro(options.name ?? "sandcastle");
-      const rows = buildRunSummaryRows({
-        name: options.name,
-        agentName,
-        sandboxName: options.sandbox.name,
-        maxIterations,
-        branch: resolvedBranch,
-      });
-      yield* d.summary("Sandcastle Run", rows);
-
-      // Validate that the user has not provided built-in prompt argument keys
-      const userArgs = options.promptArgs ?? {};
-      yield* validateNoBuiltInArgOverride(userArgs);
-
-      // Build effective args: built-in args merged with user-provided args.
-      // In none mode, resolvedBranch is already currentHostBranch, so
-      // SOURCE_BRANCH and TARGET_BRANCH both resolve to the host's current branch.
-      const effectiveArgs = {
-        SOURCE_BRANCH: resolvedBranch,
-        TARGET_BRANCH: currentHostBranch,
-        ...userArgs,
-      };
-      const builtInArgKeysSet = new Set<string>(BUILT_IN_PROMPT_ARG_KEYS);
-      const resolvedPrompt = yield* substitutePromptArgs(
-        rawPrompt,
-        effectiveArgs,
-        builtInArgKeysSet,
-      );
-
-      // In head mode, pass the host branch so SandboxLifecycle skips the merge step.
-      // In merge-to-head mode, branch is undefined (triggers merge). In branch mode, it's the explicit branch.
-      const orchestrateBranch =
-        effectiveBranchType === "head" ? currentHostBranch : branch;
-
-      const orchestrateResult = yield* orchestrate({
-        hostRepoDir,
-        iterations: maxIterations,
-        hooks,
-        prompt: resolvedPrompt,
-        branch: orchestrateBranch,
-        provider,
-        completionSignal: options.completionSignal,
-        idleTimeoutSeconds: options.idleTimeoutSeconds,
-        name: options.name,
-      });
-
-      const completion = buildCompletionMessage(
-        orchestrateResult.completionSignal,
-        orchestrateResult.iterationsRun,
-      );
-      yield* d.status(completion.message, completion.severity);
-
-      return orchestrateResult;
-    }).pipe(Effect.provide(runLayer)),
+    withErrorLog.pipe(Effect.provide(runLayer)),
   );
 
   return {

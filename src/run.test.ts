@@ -1,3 +1,6 @@
+import { readFileSync, mkdtempSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import {
   buildCompletionMessage,
@@ -415,5 +418,52 @@ describe("buildLogFilename", () => {
     expect(buildLogFilename("main", undefined, "my review agent")).toBe(
       "main-my-review-agent.log",
     );
+  });
+});
+
+describe("run() error logging to file", () => {
+  let consoleSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    consoleSpy.mockRestore();
+  });
+
+  it("writes SandboxError to log file when using file logging", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "sandcastle-run-error-"));
+    const logPath = join(dir, "test.log");
+
+    await expect(
+      run({
+        agent: claudeCode("claude-opus-4-6"),
+        sandbox: testSandbox,
+        prompt: "test prompt",
+        branchStrategy: { type: "head" },
+        promptArgs: { SOURCE_BRANCH: "override" },
+        logging: { type: "file", path: logPath },
+      }),
+    ).rejects.toThrow();
+
+    const log = readFileSync(logPath, "utf-8");
+    expect(log).toContain("SOURCE_BRANCH");
+    expect(log).toContain("built-in prompt argument");
+  });
+
+  it("still propagates the error as a rejected promise", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "sandcastle-run-error-"));
+    const logPath = join(dir, "test.log");
+
+    await expect(
+      run({
+        agent: claudeCode("claude-opus-4-6"),
+        sandbox: testSandbox,
+        prompt: "test prompt",
+        branchStrategy: { type: "head" },
+        promptArgs: { SOURCE_BRANCH: "override" },
+        logging: { type: "file", path: logPath },
+      }),
+    ).rejects.toThrow("SOURCE_BRANCH");
   });
 });
