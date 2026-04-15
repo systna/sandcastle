@@ -1,5 +1,6 @@
 import { NodeContext, NodeFileSystem } from "@effect/platform-node";
 import { join } from "node:path";
+import * as clack from "@clack/prompts";
 import { Effect } from "effect";
 import type { AgentProvider } from "./AgentProvider.js";
 import { ClackDisplay, Display } from "./Display.js";
@@ -28,6 +29,7 @@ import {
   type PromptArgs,
   substitutePromptArgs,
   validateNoBuiltInArgOverride,
+  findMissingPromptArgKeys,
   BUILT_IN_PROMPT_ARG_KEYS,
 } from "./PromptArgumentSubstitution.js";
 
@@ -145,13 +147,36 @@ export const interactive = async (
         ? currentHostBranch
         : (branch ?? generateTempBranchName(options.name));
 
-    // 4. Validate and substitute prompt args
+    // 4. Validate prompt args and collect missing ones interactively
     const userArgs = options.promptArgs ?? {};
     yield* validateNoBuiltInArgOverride(userArgs);
+
+    // Scan for missing keys and prompt the user for each one
+    const missingKeys = findMissingPromptArgKeys(rawPrompt, userArgs);
+    const collectedArgs: Record<string, string> = {};
+    for (const key of missingKeys) {
+      const value = yield* Effect.promise(() =>
+        clack.text({
+          message: `Enter value for {{${key}}}`,
+          validate: (v) => {
+            if (!v) return `A value is required for {{${key}}}`;
+          },
+        }),
+      );
+      if (clack.isCancel(value)) {
+        clack.cancel("Prompt arg collection cancelled.");
+        return yield* Effect.fail(
+          new Error("User cancelled prompt arg collection"),
+        );
+      }
+      collectedArgs[key] = value;
+    }
+
+    const mergedUserArgs = { ...userArgs, ...collectedArgs };
     const effectiveArgs = {
       SOURCE_BRANCH: resolvedBranch,
       TARGET_BRANCH: currentHostBranch,
-      ...userArgs,
+      ...mergedUserArgs,
     };
     const builtInArgKeysSet = new Set<string>(BUILT_IN_PROMPT_ARG_KEYS);
     const substitutedPrompt = yield* substitutePromptArgs(
