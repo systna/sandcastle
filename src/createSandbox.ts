@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { Effect, Layer, Ref } from "effect";
 import type { AgentProvider } from "./AgentProvider.js";
 import {
+  ClackDisplay,
   Display,
   FileDisplay,
   SilentDisplay,
@@ -451,24 +452,16 @@ export const createSandbox = async (
       const interactiveExecFn =
         providerHandle.interactiveExec.bind(providerHandle);
 
-      // Resolve prompt
-      const rawPrompt = await Effect.runPromise(
-        resolvePrompt({ prompt, promptFile }).pipe(
-          Effect.provide(NodeContext.layer),
-        ),
-      );
-
-      // Resolve prompt arguments
-      const userArgs = interactiveOptions.promptArgs ?? {};
-      const currentHostBranch = await Effect.runPromise(
-        WorktreeManager.getCurrentBranch(hostRepoDir),
-      );
-
-      const displayRef = Ref.unsafeMake<ReadonlyArray<DisplayEntry>>([]);
-      const silentDisplayLayer = SilentDisplay.layer(displayRef);
-
-      const resolvedPrompt = await Effect.runPromise(
+      const lifecycleResult = await Effect.runPromise(
         Effect.gen(function* () {
+          // Resolve prompt
+          const rawPrompt = yield* resolvePrompt({ prompt, promptFile });
+
+          // Resolve prompt arguments
+          const userArgs = interactiveOptions.promptArgs ?? {};
+          const currentHostBranch =
+            yield* WorktreeManager.getCurrentBranch(hostRepoDir);
+
           yield* validateNoBuiltInArgOverride(userArgs);
           const effectiveArgs = {
             SOURCE_BRANCH: branch,
@@ -476,51 +469,49 @@ export const createSandbox = async (
             ...userArgs,
           };
           const builtInArgKeysSet = new Set<string>(BUILT_IN_PROMPT_ARG_KEYS);
-          return yield* substitutePromptArgs(
+          const resolvedPrompt = yield* substitutePromptArgs(
             rawPrompt,
             effectiveArgs,
             builtInArgKeysSet,
           );
-        }).pipe(Effect.provide(silentDisplayLayer)),
-      );
 
-      // Run interactive session using withSandboxLifecycle for commit collection
-      const lifecycleEffect = withSandboxLifecycle(
-        {
-          hostRepoDir,
-          sandboxRepoDir,
-          branch,
-          hostWorktreePath: worktreePath,
-          applyToHost,
-        },
-        (ctx) =>
-          Effect.gen(function* () {
-            // Preprocess prompt (expand !`command` shell expressions inside sandbox)
-            const fullPrompt = yield* preprocessPrompt(
-              resolvedPrompt,
-              ctx.sandbox,
-              ctx.sandboxRepoDir,
-            );
+          // Run interactive session using withSandboxLifecycle for commit collection
+          return yield* withSandboxLifecycle(
+            {
+              hostRepoDir,
+              sandboxRepoDir,
+              branch,
+              hostWorktreePath: worktreePath,
+              applyToHost,
+            },
+            (ctx) =>
+              Effect.gen(function* () {
+                // Preprocess prompt (expand !`command` shell expressions inside sandbox)
+                const fullPrompt = yield* preprocessPrompt(
+                  resolvedPrompt,
+                  ctx.sandbox,
+                  ctx.sandboxRepoDir,
+                );
 
-            // Build interactive args and run the session
-            const interactiveArgs = provider.buildInteractiveArgs!(fullPrompt);
-            const result = yield* Effect.promise(() =>
-              interactiveExecFn(interactiveArgs, {
-                stdin: process.stdin,
-                stdout: process.stdout,
-                stderr: process.stderr,
-                cwd: sandboxRepoDir,
+                // Build interactive args and run the session
+                const interactiveArgs =
+                  provider.buildInteractiveArgs!(fullPrompt);
+                const result = yield* Effect.promise(() =>
+                  interactiveExecFn(interactiveArgs, {
+                    stdin: process.stdin,
+                    stdout: process.stdout,
+                    stderr: process.stderr,
+                    cwd: sandboxRepoDir,
+                  }),
+                );
+
+                return result.exitCode;
               }),
-            );
-
-            return result.exitCode;
-          }),
-      );
-
-      const lifecycleResult = await Effect.runPromise(
-        lifecycleEffect.pipe(
+          );
+        }).pipe(
           Effect.provide(sandboxLayer),
-          Effect.provide(silentDisplayLayer),
+          Effect.provide(ClackDisplay.layer),
+          Effect.provide(NodeContext.layer),
         ),
       );
 
