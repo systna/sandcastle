@@ -1308,6 +1308,50 @@ describe("InitService scaffold", () => {
       expect(prompt).not.toContain("{{VIEW_TASK_COMMAND}}");
     });
 
+    it("parallel-planner with github-issues produces merge-prompt with gh issue close", async () => {
+      const dir = await makeDir();
+      await runScaffold(dir, {
+        templateName: "parallel-planner",
+        backlogManager: getBacklogManager("github-issues"),
+      });
+
+      const prompt = await readFile(
+        join(dir, ".sandcastle", "merge-prompt.md"),
+        "utf-8",
+      );
+      expect(prompt).toContain("gh issue close");
+      expect(prompt).not.toContain("{{CLOSE_TASK_COMMAND}}");
+    });
+
+    it("parallel-planner with beads produces merge-prompt with bd close", async () => {
+      const dir = await makeDir();
+      await runScaffold(dir, {
+        templateName: "parallel-planner",
+        backlogManager: getBacklogManager("beads"),
+      });
+
+      const prompt = await readFile(
+        join(dir, ".sandcastle", "merge-prompt.md"),
+        "utf-8",
+      );
+      expect(prompt).toContain("bd close");
+      expect(prompt).not.toContain("gh issue");
+      expect(prompt).not.toContain("{{CLOSE_TASK_COMMAND}}");
+    });
+
+    it("parallel-planner implement-prompt uses backlog-agnostic language", async () => {
+      const dir = await makeDir();
+      await runScaffold(dir, {
+        templateName: "parallel-planner",
+      });
+
+      const prompt = await readFile(
+        join(dir, ".sandcastle", "implement-prompt.md"),
+        "utf-8",
+      );
+      expect(prompt).not.toContain("GitHub issue");
+    });
+
     // --- parallel-planner-with-review ---
 
     it("parallel-planner-with-review with github-issues produces plan-prompt with gh issue commands", async () => {
@@ -1403,6 +1447,50 @@ describe("InitService scaffold", () => {
       expect(prompt).toContain("bd show");
       expect(prompt).not.toContain("gh issue");
       expect(prompt).not.toContain("{{VIEW_TASK_COMMAND}}");
+    });
+
+    it("parallel-planner-with-review with github-issues produces merge-prompt with gh issue close", async () => {
+      const dir = await makeDir();
+      await runScaffold(dir, {
+        templateName: "parallel-planner-with-review",
+        backlogManager: getBacklogManager("github-issues"),
+      });
+
+      const prompt = await readFile(
+        join(dir, ".sandcastle", "merge-prompt.md"),
+        "utf-8",
+      );
+      expect(prompt).toContain("gh issue close");
+      expect(prompt).not.toContain("{{CLOSE_TASK_COMMAND}}");
+    });
+
+    it("parallel-planner-with-review with beads produces merge-prompt with bd close", async () => {
+      const dir = await makeDir();
+      await runScaffold(dir, {
+        templateName: "parallel-planner-with-review",
+        backlogManager: getBacklogManager("beads"),
+      });
+
+      const prompt = await readFile(
+        join(dir, ".sandcastle", "merge-prompt.md"),
+        "utf-8",
+      );
+      expect(prompt).toContain("bd close");
+      expect(prompt).not.toContain("gh issue");
+      expect(prompt).not.toContain("{{CLOSE_TASK_COMMAND}}");
+    });
+
+    it("parallel-planner-with-review implement-prompt uses backlog-agnostic language", async () => {
+      const dir = await makeDir();
+      await runScaffold(dir, {
+        templateName: "parallel-planner-with-review",
+      });
+
+      const prompt = await readFile(
+        join(dir, ".sandcastle", "implement-prompt.md"),
+        "utf-8",
+      );
+      expect(prompt).not.toContain("GitHub issue");
     });
   });
 

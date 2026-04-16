@@ -15,7 +15,11 @@ After all branches are merged, make a single commit summarizing the merge.
 
 # CLOSE ISSUES
 
-For each branch that was merged, close its issue. Here are all the issues:
+For each branch that was merged, close its issue using the following command:
+
+`{{CLOSE_TASK_COMMAND}}`
+
+Here are all the issues:
 
 {{ISSUES}}
 
