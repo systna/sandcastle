@@ -11,8 +11,18 @@ The TypeScript CLI tool that orchestrates an **agent** inside a **sandbox**.
 _Avoid_: "the tool", "the CLI", "RALPH"
 
 **Sandbox**:
-The isolation boundary around a **workspace** -- a container, VM, or similar environment that constrains the **agent**'s access.
-_Avoid_: "container" (too specific), "Docker sandbox" (ambiguous with Claude's built-in feature), "workspace" (different concept)
+The isolation boundary around the **agent** -- a container, VM, or similar environment that constrains the **agent**'s access.
+_Avoid_: "container" (too specific), "Docker sandbox" (ambiguous with Claude's built-in feature), "workspace"
+
+**Host**:
+The developer's machine where Sandcastle runs and the real git repo lives.
+_Avoid_: "local" (ambiguous -- the sandbox also has a local filesystem)
+
+**Agent**:
+The AI coding tool invoked inside the **sandbox** (e.g. Claude Code, Codex).
+_Avoid_: "RALPH", "the bot", "Claude" (too specific -- agent is swappable)
+
+### Sandboxes
 
 **Sandbox provider**:
 A pluggable implementation that creates and manages a **sandbox**, injected into `run()` via the `sandbox` option.
@@ -30,20 +40,14 @@ _Avoid_: "remote provider", "sync provider"
 A **sandbox provider** where no container is created -- the **agent** runs directly on the **host**.
 _Avoid_: "local provider", "none provider", "host provider"
 
-**Sandbox handle**:
-The object returned by a **sandbox provider**'s `create()` method, exposing `exec` and `close`.
-_Avoid_: "sandbox instance", "sandbox connection"
-
-**Workspace**:
-The directory where the **agent** runs -- either the **host** working directory or a **worktree**.
-_Avoid_: "sandbox" (when referring to the directory), "working directory" (too generic)
+### Branching
 
 **Branch strategy**:
 Configuration on a **sandbox provider** that controls how the agent's changes relate to branches, set at provider construction time.
 _Avoid_: "worktree mode" (old name), "branch mode"
 
 **Head (branch strategy)**:
-A **branch strategy** where the **workspace** is the **host** working directory itself -- no worktree, no branch indirection.
+A **branch strategy** where the **agent** works directly in the **host** working directory -- no **worktree**, no branch indirection.
 _Avoid_: `"none"` (old name), "direct"
 
 **Merge-to-head (branch strategy)**:
@@ -54,13 +58,19 @@ _Avoid_: `"temp-branch"` (old name), "auto-branch"
 A **branch strategy** where commits land on an explicitly named branch provided by the caller.
 _Avoid_: "named-branch"
 
-**Host**:
-The developer's machine where Sandcastle runs and the real git repo lives.
-_Avoid_: "local" (ambiguous -- the sandbox also has a local filesystem)
+**Worktree**:
+A git worktree created in `.sandcastle/worktrees/` on the **host**, used by the **merge-to-head** and **branch** strategies. For **bind-mount sandbox providers**, the **worktree** is mounted into the **sandbox**. For **isolated sandbox providers**, the **worktree** is the sync source/destination -- commits from the **sandbox** are pulled back into the **worktree**. Created explicitly via `createWorktree()` or implicitly by `run()`/`interactive()` when using a non-**head** **branch strategy**.
+_Avoid_: "workspace", "branch copy", "clone"
 
-**Agent**:
-The AI coding tool invoked inside the **sandbox** (e.g. Claude Code, Codex).
-_Avoid_: "RALPH", "the bot", "Claude" (too specific -- agent is swappable)
+**Source branch**:
+The branch the **agent** works on -- determined by the **branch strategy**.
+_Avoid_: "working branch", "agent branch"
+
+**Target branch**:
+The **host**'s active branch at `run()` time -- the branch Sandcastle merges into when using **merge-to-head**.
+_Avoid_: "base branch", "destination branch", "merge target"
+
+### Agents
 
 **Agent provider**:
 A pluggable implementation that builds commands and parses output for a specific **agent**, injected into `run()` via the `agent` option.
@@ -80,9 +90,7 @@ _Avoid_: "job", "work item", "ticket"
 The `<promise>COMPLETE</promise>` marker in the **agent**'s output indicating all actionable tasks are finished.
 _Avoid_: "done flag", "exit signal"
 
-**Orchestrator**:
-The module that drives the **iteration** loop.
-_Avoid_: "runner", "loop", "wrapper script"
+### Prompts
 
 **Prompt**:
 The instruction text passed to the **agent** at the start of each **iteration**.
@@ -108,18 +116,6 @@ _Avoid_: "command" (overloaded), "inline command", "prompt command"
 A **prompt argument** that Sandcastle injects automatically -- not provided by the user via `promptArgs`.
 _Avoid_: "system variable", "auto argument", "default prompt argument"
 
-**Interactive arg collection**:
-In `interactive()` mode, the behavior where Sandcastle prompts the user for `{{KEY}}` placeholders with no matching **prompt argument**.
-_Avoid_: "arg prompting", "interactive fill"
-
-**Source branch**:
-The branch the **agent** works on -- determined by the **branch strategy**.
-_Avoid_: "working branch", "agent branch"
-
-**Target branch**:
-The **host**'s active branch at `run()` time -- the branch Sandcastle merges into when using **merge-to-head**.
-_Avoid_: "base branch", "destination branch", "merge target"
-
 ### Init
 
 **Init**:
@@ -144,14 +140,6 @@ _Avoid_: "template expansion", "interpolation"
 
 ### Infrastructure
 
-**Env resolver**:
-The module that loads environment variables from `.env` files and `process.env`.
-_Avoid_: "token resolver" (too specific to auth tokens)
-
-**Env manifest**:
-The **agent provider**'s declaration of which environment variables it requires or supports.
-_Avoid_: "env example", "env template", "env schema"
-
 **Build-image**:
 A provider-namespaced CLI command that rebuilds the image (e.g. `sandcastle docker build-image`).
 _Avoid_: "setup-sandbox" (old name)
@@ -159,6 +147,8 @@ _Avoid_: "setup-sandbox" (old name)
 **Remove-image**:
 A provider-namespaced CLI command that removes the image (e.g. `sandcastle docker remove-image`).
 _Avoid_: "cleanup-sandbox" (old name)
+
+### Display
 
 **Log-to-file mode**:
 The display mode where Sandcastle writes iteration progress and agent output to a **run log**.
@@ -172,18 +162,6 @@ _Avoid_: "log file" (too generic), "output file"
 The display mode where Sandcastle renders an interactive UI in the terminal with spinners and styled status messages.
 _Avoid_: "stdout mode", "interactive mode", "CLI mode" (ambiguous with the CLI itself)
 
-**Home dir**:
-The home directory inside the **sandbox**, declared on the **sandbox provider** at construction time via `homeDir`.
-_Avoid_: "sandboxHomedir", "sandbox home", "container home"
-
-**Sandbox service**:
-The internal Effect service interface that wraps the **sandbox handle** for use inside Sandcastle's Effect-based internals.
-_Avoid_: "adapter", "transport"
-
-**Worktree**:
-A git worktree created in `.sandcastle/worktrees/` on the **host**, used by the **merge-to-head** and **branch** strategies.
-_Avoid_: "branch copy", "clone"
-
 ## Relationships
 
 - **Sandcastle** orchestrates an **agent** inside a **sandbox**
@@ -196,7 +174,6 @@ _Avoid_: "branch copy", "clone"
 - A **no-sandbox provider** supports all three **branch strategies** (default: **head**). It is only accepted by `interactive()`, not `run()` -- enforced at the type level. The **agent provider** does not receive `dangerouslySkipPermissions: true`
 - `interactive()` accepts all three **sandbox provider** types; `run()` accepts only **bind-mount** and **isolated**
 - `createSandbox()` does not accept a **no-sandbox provider**
-- The **sandbox handle** is wrapped internally into the **sandbox service** for use in Effect-based internals. **Isolated** handles additionally expose `copyIn`, `copyOut`, and `extractCommits`
 - **Sandbox providers** are imported from subpaths (e.g. `sandcastle/sandboxes/docker`) -- the main `sandcastle` entry point does not re-export any provider
 - Each **iteration** may produce one or more commits; iterations repeat until the **completion signal** fires or the max count is reached
 - **Init** creates the **config directory** on the **host**, prompting the user to select an **agent** and **backlog manager**
@@ -204,16 +181,12 @@ _Avoid_: "branch copy", "clone"
 - Each **backlog manager** declares a Dockerfile snippet (installed via **template argument substitution**) and command placeholders for **prompt** templates
 - The **agent**'s Dockerfile template contains **template arguments** (e.g. `{{BACKLOG_MANAGER_TOOLS}}`) that **init** fills in based on the selected **backlog manager**
 - **Build-image** and **remove-image** are namespaced under their provider in the CLI (e.g. `sandcastle docker build-image`)
-- The **env resolver** loads env vars from: **config directory** `.env` > `process.env` -- only keys declared in the **config directory** `.env` are resolved from `process.env`; repo root `.env` is not part of the resolution chain
-- Each **agent provider** declares an **env manifest**
 - The **agent provider** is selected via the `agent` field in config or `--agent` CLI flag
-- At launch, Sandcastle resolves env vars via the **env resolver** and passes the full env map into the **sandbox**
-- **Init** uses the **agent provider**'s **env manifest** to scaffold `.env.example`
-- `buildInteractiveArgs` and `buildPrintCommand` on the **agent provider** accept an options object with a `dangerouslySkipPermissions` boolean -- `false` for **no-sandbox**, `true` otherwise
+- At launch, Sandcastle resolves env vars from **config directory** `.env` and `process.env`, then passes the full env map into the **sandbox**
 - **Prompt argument substitution** runs once after prompt resolution, replacing `{{KEY}}` placeholders with values from **prompt arguments** -- this happens on the **host**, before the **sandbox** exists
 - **Prompt expansion** runs before each **iteration**, evaluating all **shell expressions** inside the **sandbox**
 - **Prompt argument substitution** runs before **prompt expansion**, so **prompt arguments** can inject values into **shell expressions**
-- A `{{KEY}}` placeholder with no matching **prompt argument** is an error in `run()` (AFK mode); in `interactive()`, **interactive arg collection** prompts the user to fill in missing values
+- A `{{KEY}}` placeholder with no matching **prompt argument** is an error in `run()` (AFK mode); in `interactive()`, Sandcastle prompts the user to fill in missing values
 - Unused **prompt arguments** produce a warning
 - A **prompt** may contain zero or more **prompt arguments** and/or **shell expressions**; each substitution step is skipped if there are no matches
 - Sandcastle injects **built-in prompt arguments** `{{SOURCE_BRANCH}}` and `{{TARGET_BRANCH}}` automatically
@@ -242,7 +215,7 @@ _Avoid_: "branch copy", "clone"
 
 > **Dev:** "Can I write my own provider?"
 
-> **Domain expert:** "Yes. Implement a function that returns a `SandboxProvider`. If your environment can mount a host directory, use the bind-mount factory -- Sandcastle handles worktrees and commit extraction for you. If not, use the isolated factory and implement `copyIn`, `copyFileOut`, and `extractCommits` on the **sandbox handle**. The **branch strategy** is configured on the provider at construction time."
+> **Domain expert:** "Yes. Implement a function that returns a `SandboxProvider`. If your environment can mount a host directory, use the bind-mount factory -- Sandcastle handles worktrees and commit extraction for you. If not, use the isolated factory and implement `copyIn`, `copyFileOut`, and `extractCommits`. The **branch strategy** is configured on the provider at construction time."
 
 ### No-sandbox provider
 
@@ -274,17 +247,17 @@ _Avoid_: "branch copy", "clone"
 
 > **Dev:** "My prompt has `{{ISSUE_NUMBER}}` but I forgot to pass it in `promptArgs`. What happens in interactive mode?"
 
-> **Domain expert:** "**Interactive arg collection** kicks in. Sandcastle scans the **prompt**, finds the missing `{{ISSUE_NUMBER}}`, and prompts you at the terminal to type it in. In `run()` it would just error -- there's nobody to ask."
+> **Domain expert:** "Sandcastle scans the **prompt**, finds the missing `{{ISSUE_NUMBER}}`, and prompts you at the terminal to type it in. In `run()` it would just error -- there's nobody to ask."
 
 ### Agent providers & environment
 
 > **Dev:** "What if I want to add support for OpenCode instead of Claude Code?"
 
-> **Domain expert:** "Create a new **agent provider**. It declares its own **env manifest** -- maybe it needs `OPEN_CODE_API_KEY` instead of `ANTHROPIC_API_KEY`. And it provides its own Dockerfile template that installs the right binary."
+> **Domain expert:** "Create a new **agent provider**. It declares which env vars it needs -- maybe `OPEN_CODE_API_KEY` instead of `ANTHROPIC_API_KEY`. And it provides its own Dockerfile template that installs the right binary."
 
 > **Dev:** "How does Sandcastle know which **agent provider** to use?"
 
-> **Domain expert:** "The `agent` option passed to `run()`, or the `--agent` CLI flag. The **env resolver** loads all env vars generically and passes them straight through to the **sandbox** -- the **agent** handles missing credentials on its own."
+> **Domain expert:** "The `agent` option passed to `run()`, or the `--agent` CLI flag. Sandcastle loads env vars and passes them straight through to the **sandbox** -- the **agent** handles missing credentials on its own."
 
 ### Built-in prompt arguments
 
@@ -304,12 +277,12 @@ _Avoid_: "branch copy", "clone"
 - **"Container"** vs **"Sandbox"** -- "Container" is a Docker/Podman primitive; **sandbox** is our abstraction. Use **sandbox** for the concept, "container" only for provider implementation details.
 - **"Local"** vs **"Host"** -- Use **host** for the developer's machine. "Local" is ambiguous (the **worktree** is also on a local filesystem).
 - **"Run"** -- Can mean the JS `run()` function or a single **iteration**. Use **iteration** for one agent invocation; "run session" for a call to `run()`.
-- **"Token"** vs **"Env var"** -- The **env resolver** handles all environment variables generically. Use "env var" for the general concept; "token" only for auth credential values.
+- **"Token"** vs **"Env var"** -- Sandcastle handles all environment variables generically. Use "env var" for the general concept; "token" only for auth credential values.
 - **"Command"** -- Overloaded: hook commands, shell commands, CLI commands, **shell expressions**. Use **shell expression** for `` !`...` `` syntax; "hook" for lifecycle hooks; "CLI command" for `sandcastle init`, etc.
 - **"Variable"** vs **"Argument"** -- **Prompt arguments** are host-side values substituted into `{{KEY}}` placeholders. Env vars are passed into the **sandbox** environment. Don't call prompt arguments "variables".
 - **"File mode"** vs **"Log-to-file mode"** -- Use **log-to-file mode**. "File mode" is ambiguous. Similarly, avoid "stdout mode" for **terminal mode**.
 - **"Base branch"** vs **"Target branch"** -- Use **target branch**. "Base branch" is ambiguous in Sandcastle's context.
 - **"Built-in"** vs **"Default"** prompt arguments -- "Default" implies overridable. **Built-in prompt arguments** cannot be overridden. Use "built-in".
 - **"No sandbox"** vs **"local"** vs **"none"** -- The provider type is `NoSandboxProvider`, the factory is `noSandbox()`, the tag is `"none"`. Say **no-sandbox provider** in prose.
-- **"Sandbox"** vs **"Workspace"** -- The **sandbox** is the isolation boundary. The **workspace** is the directory where the agent runs. A **no-sandbox provider** has a workspace but no sandbox.
+- **"Workspace"** -- Retired term. Use **worktree** for the git worktree on the **host**, and **sandbox** for the isolation boundary. Don't say "workspace" in this project.
 - **"Interactive mode"** -- Could mean `interactive()` (Sandcastle's function) or Claude Code's TUI. In this project, it means Sandcastle's `interactive()`. Don't confuse with **terminal mode**.
