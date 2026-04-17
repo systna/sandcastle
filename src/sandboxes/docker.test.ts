@@ -75,7 +75,7 @@ describe("docker()", () => {
     ).toThrow("Mount hostPath does not exist");
   });
 
-  it("resolves relative sandboxPath against sandbox workspace dir", () => {
+  it("resolves relative sandboxPath against sandbox repo dir", () => {
     const provider = docker({
       mounts: [{ hostPath: "src", sandboxPath: "data" }],
     });

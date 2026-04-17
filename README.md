@@ -65,16 +65,16 @@ await run({
 
 ## Sandbox Providers
 
-Sandcastle uses a `SandboxProvider` to create isolated environments. The `sandbox` option on `run()` and `createSandbox()` accepts any provider. A no-sandbox option is also available for `interactive()` and `ws.interactive()`. Built-in providers:
+Sandcastle uses a `SandboxProvider` to create isolated environments. The `sandbox` option on `run()` and `createSandbox()` accepts any provider. A no-sandbox option is also available for `interactive()` and `wt.interactive()`. Built-in providers:
 
 | Provider   | Import path                                | Type       | Accepted by                                   |
 | ---------- | ------------------------------------------ | ---------- | --------------------------------------------- |
 | Docker     | `@ai-hero/sandcastle/sandboxes/docker`     | Bind-mount | `run()`, `createSandbox()`, `interactive()`   |
 | Podman     | `@ai-hero/sandcastle/sandboxes/podman`     | Bind-mount | `run()`, `createSandbox()`, `interactive()`   |
 | Vercel     | `@ai-hero/sandcastle/sandboxes/vercel`     | Isolated   | `run()`, `createSandbox()`, `interactive()`   |
-| No-sandbox | `@ai-hero/sandcastle/sandboxes/no-sandbox` | None       | `interactive()`, `ws.interactive()` (default) |
+| No-sandbox | `@ai-hero/sandcastle/sandboxes/no-sandbox` | None       | `interactive()`, `wt.interactive()` (default) |
 
-Workspace methods (`ws.run()`, `ws.interactive()`, `ws.createSandbox()`) accept the same providers as their top-level counterparts. `ws.interactive()` defaults to `noSandbox()` when no sandbox is specified.
+Worktree methods (`wt.run()`, `wt.interactive()`, `wt.createSandbox()`) accept the same providers as their top-level counterparts. `wt.interactive()` defaults to `noSandbox()` when no sandbox is specified.
 
 ```typescript
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
@@ -135,10 +135,10 @@ const result = await run({
     imageName: "sandcastle:local",
     // Optional: mount host directories into the sandbox (e.g. package manager caches)
     // hostPath supports absolute, tilde-expanded (~), and relative paths (resolved from cwd).
-    // sandboxPath supports absolute and relative paths (resolved from workspace directory).
+    // sandboxPath supports absolute and relative paths (resolved from the sandbox repo directory).
     mounts: [
       { hostPath: "~/.npm", sandboxPath: "/home/agent/.npm", readonly: true },
-      { hostPath: "data", sandboxPath: "data" }, // mounts <cwd>/data → <workspace>/data
+      { hostPath: "data", sandboxPath: "data" }, // mounts <cwd>/data → <sandbox-repo>/data
     ],
     // Optional: provider-level env vars merged at launch time
     env: { DOCKER_SPECIFIC: "value" },
@@ -173,7 +173,7 @@ const result = await run({
 
   // Host-relative file paths to copy into the sandbox before the container starts.
   // Not supported with branchStrategy: { type: "head" }.
-  copyToWorkspace: [".env"],
+  copyToWorktree: [".env"],
 
   // How to record progress. Default: write to a file under .sandcastle/logs/
   logging: { type: "file", path: ".sandcastle/logs/my-run.log" },
@@ -259,8 +259,8 @@ const sandbox = await createSandbox({
 });
 // ... run agents ...
 const closeResult = await sandbox.close();
-if (closeResult.preservedWorkspacePath) {
-  console.log(`Workspace preserved at ${closeResult.preservedWorkspacePath}`);
+if (closeResult.preservedWorktreePath) {
+  console.log(`Worktree preserved at ${closeResult.preservedWorktreePath}`);
 }
 ```
 
@@ -271,7 +271,7 @@ if (closeResult.preservedWorkspacePath) {
 | `branch`                   | string          | —       | **Required.** Explicit branch for the sandbox                            |
 | `sandbox`                  | SandboxProvider | —       | **Required.** Sandbox provider (e.g. `docker()`, `podman()`)             |
 | `hooks`                    | object          | —       | Lifecycle hooks (`onSandboxReady`) — run once at creation time           |
-| `copyToWorkspace`          | string[]        | —       | Host-relative file paths to copy into the sandbox at creation time       |
+| `copyToWorktree`           | string[]        | —       | Host-relative file paths to copy into the sandbox at creation time       |
 | `throwOnDuplicateWorktree` | boolean         | `true`  | When `false`, reuse an existing worktree instead of failing on collision |
 
 #### `Sandbox`
@@ -279,7 +279,7 @@ if (closeResult.preservedWorkspacePath) {
 | Property / Method       | Type                                               | Description                                 |
 | ----------------------- | -------------------------------------------------- | ------------------------------------------- |
 | `branch`                | string                                             | The branch the sandbox is on                |
-| `workspacePath`         | string                                             | Host path to the workspace                  |
+| `worktreePath`          | string                                             | Host path to the worktree                   |
 | `run(options)`          | `(SandboxRunOptions) => Promise<SandboxRunResult>` | Invoke an agent inside the existing sandbox |
 | `close()`               | `() => Promise<CloseResult>`                       | Tear down the container and sandbox         |
 | `[Symbol.asyncDispose]` | `() => Promise<void>`                              | Auto teardown via `await using`             |
@@ -310,35 +310,35 @@ if (closeResult.preservedWorkspacePath) {
 
 #### `CloseResult`
 
-| Field                    | Type    | Description                                                               |
-| ------------------------ | ------- | ------------------------------------------------------------------------- |
-| `preservedWorkspacePath` | string? | Host path to the preserved workspace, set when it had uncommitted changes |
+| Field                   | Type    | Description                                                              |
+| ----------------------- | ------- | ------------------------------------------------------------------------ |
+| `preservedWorktreePath` | string? | Host path to the preserved worktree, set when it had uncommitted changes |
 
-### `createWorkspace()` — independent workspace lifecycle
+### `createWorktree()` — independent worktree lifecycle
 
-Use `createWorkspace()` when you need a workspace (git worktree) as an independent, first-class concept — separate from any sandbox. This is useful when you want to run an interactive session first and then hand the same workspace to a sandboxed AFK agent.
+Use `createWorktree()` when you need a worktree (git worktree) as an independent, first-class concept — separate from any sandbox. This is useful when you want to run an interactive session first and then hand the same worktree to a sandboxed AFK agent.
 
 Only `branch` and `merge-to-head` strategies are accepted; `head` is a compile-time type error since it means no worktree.
 
 ```typescript
-import { createWorkspace } from "@ai-hero/sandcastle";
+import { createWorktree } from "@ai-hero/sandcastle";
 
-await using ws = await createWorkspace({
+await using wt = await createWorktree({
   branchStrategy: { type: "branch", branch: "agent/fix-42" },
-  copyToWorkspace: ["node_modules"],
+  copyToWorktree: ["node_modules"],
 });
 
-console.log(ws.workspacePath); // host path to the worktree
-console.log(ws.branch); // "agent/fix-42"
+console.log(wt.worktreePath); // host path to the worktree
+console.log(wt.branch); // "agent/fix-42"
 
-// Run an interactive session in the workspace (defaults to noSandbox)
-await ws.interactive({
+// Run an interactive session in the worktree (defaults to noSandbox)
+await wt.interactive({
   agent: claudeCode("claude-opus-4-6"),
   prompt: "Explore the codebase and understand the bug.",
 });
 
-// Run an AFK agent in the workspace (sandbox is required)
-const result = await ws.run({
+// Run an AFK agent in the worktree (sandbox is required)
+const result = await wt.run({
   agent: claudeCode("claude-opus-4-6"),
   sandbox: docker({ imageName: "sandcastle:myrepo" }),
   prompt: "Fix issue #42.",
@@ -346,10 +346,10 @@ const result = await ws.run({
 });
 console.log(result.commits); // commits made during the run
 
-// Create a long-lived sandbox from the workspace
+// Create a long-lived sandbox from the worktree
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 
-await using sandbox = await ws.createSandbox({
+await using sandbox = await wt.createSandbox({
   sandbox: docker(),
   hooks: { onSandboxReady: [{ command: "npm install" }] },
 });
@@ -357,33 +357,33 @@ await using sandbox = await ws.createSandbox({
 // sandbox.close() tears down the container only — the worktree stays
 await sandbox.close();
 
-// ws.close() cleans up the worktree
+// wt.close() cleans up the worktree
 ```
 
-`ws.close()` checks for uncommitted changes: if the worktree is dirty, it's preserved on disk; if clean, it's removed. `await using` calls `close()` automatically. The workspace persists after `run()`, `interactive()`, and `createSandbox()` complete, so you can hand it to another agent or inspect it.
+`wt.close()` checks for uncommitted changes: if the worktree is dirty, it's preserved on disk; if clean, it's removed. `await using` calls `close()` automatically. The worktree persists after `run()`, `interactive()`, and `createSandbox()` complete, so you can hand it to another agent or inspect it.
 
-**Split ownership**: When a sandbox is created via `ws.createSandbox()`, `sandbox.close()` tears down the container only — the worktree remains. `ws.close()` is responsible for worktree cleanup. This differs from the top-level `createSandbox()`, where `sandbox.close()` owns both container and worktree.
+**Split ownership**: When a sandbox is created via `wt.createSandbox()`, `sandbox.close()` tears down the container only — the worktree remains. `wt.close()` is responsible for worktree cleanup. This differs from the top-level `createSandbox()`, where `sandbox.close()` owns both container and worktree.
 
-#### `CreateWorkspaceOptions`
+#### `CreateWorktreeOptions`
 
-| Option            | Type                    | Default | Description                                                               |
-| ----------------- | ----------------------- | ------- | ------------------------------------------------------------------------- |
-| `branchStrategy`  | WorkspaceBranchStrategy | —       | **Required.** `{ type: "branch", branch }` or `{ type: "merge-to-head" }` |
-| `copyToWorkspace` | string[]                | —       | Host-relative file paths to copy into the worktree at creation time       |
+| Option           | Type                   | Default | Description                                                               |
+| ---------------- | ---------------------- | ------- | ------------------------------------------------------------------------- |
+| `branchStrategy` | WorktreeBranchStrategy | —       | **Required.** `{ type: "branch", branch }` or `{ type: "merge-to-head" }` |
+| `copyToWorktree` | string[]               | —       | Host-relative file paths to copy into the worktree at creation time       |
 
-#### `Workspace`
+#### `Worktree`
 
-| Property / Method        | Type                                                                   | Description                                                     |
-| ------------------------ | ---------------------------------------------------------------------- | --------------------------------------------------------------- |
-| `branch`                 | string                                                                 | The branch the workspace is on                                  |
-| `workspacePath`          | string                                                                 | Host path to the workspace                                      |
-| `run(options)`           | `(options: WorkspaceRunOptions) => Promise<WorkspaceRunResult>`        | Run an AFK agent in the workspace (sandbox required)            |
-| `interactive(options)`   | `(options: WorkspaceInteractiveOptions) => Promise<InteractiveResult>` | Run an interactive agent session in the workspace               |
-| `createSandbox(options)` | `(options: WorkspaceCreateSandboxOptions) => Promise<Sandbox>`         | Create a long-lived sandbox backed by this workspace's worktree |
-| `close()`                | `() => Promise<CloseResult>`                                           | Clean up the worktree (preserves if dirty)                      |
-| `[Symbol.asyncDispose]`  | `() => Promise<void>`                                                  | Auto cleanup via `await using`                                  |
+| Property / Method        | Type                                                                  | Description                                         |
+| ------------------------ | --------------------------------------------------------------------- | --------------------------------------------------- |
+| `branch`                 | string                                                                | The branch the worktree is on                       |
+| `worktreePath`           | string                                                                | Host path to the worktree                           |
+| `run(options)`           | `(options: WorktreeRunOptions) => Promise<WorktreeRunResult>`         | Run an AFK agent in the worktree (sandbox required) |
+| `interactive(options)`   | `(options: WorktreeInteractiveOptions) => Promise<InteractiveResult>` | Run an interactive agent session in the worktree    |
+| `createSandbox(options)` | `(options: WorktreeCreateSandboxOptions) => Promise<Sandbox>`         | Create a long-lived sandbox backed by this worktree |
+| `close()`                | `() => Promise<CloseResult>`                                          | Clean up the worktree (preserves if dirty)          |
+| `[Symbol.asyncDispose]`  | `() => Promise<void>`                                                 | Auto cleanup via `await using`                      |
 
-#### `WorkspaceInteractiveOptions`
+#### `WorktreeInteractiveOptions`
 
 | Option       | Type                   | Default       | Description                                          |
 | ------------ | ---------------------- | ------------- | ---------------------------------------------------- |
@@ -396,7 +396,7 @@ await sandbox.close();
 | `promptArgs` | PromptArgs             | —             | Key-value map for `{{KEY}}` placeholder substitution |
 | `env`        | Record<string, string> | —             | Environment variables to inject into the sandbox     |
 
-#### `WorkspaceRunOptions`
+#### `WorktreeRunOptions`
 
 | Option               | Type                   | Default | Description                                                   |
 | -------------------- | ---------------------- | ------- | ------------------------------------------------------------- |
@@ -413,7 +413,7 @@ await sandbox.close();
 | `promptArgs`         | PromptArgs             | —       | Key-value map for `{{KEY}}` placeholder substitution          |
 | `env`                | Record<string, string> | —       | Environment variables to inject into the sandbox              |
 
-#### `WorkspaceRunResult`
+#### `WorktreeRunResult`
 
 | Property           | Type              | Description                                            |
 | ------------------ | ----------------- | ------------------------------------------------------ |
@@ -424,13 +424,13 @@ await sandbox.close();
 | `branch`           | string            | The branch name the agent worked on                    |
 | `logFilePath`      | string            | Path to the log file, if logging was drained to a file |
 
-#### `WorkspaceCreateSandboxOptions`
+#### `WorktreeCreateSandboxOptions`
 
-| Option            | Type            | Default | Description                                                          |
-| ----------------- | --------------- | ------- | -------------------------------------------------------------------- |
-| `sandbox`         | SandboxProvider | —       | **Required.** Sandbox provider (e.g. `docker()`)                     |
-| `hooks`           | SandboxHooks    | —       | One-time setup hooks to run when the sandbox is first created        |
-| `copyToWorkspace` | string[]        | —       | Host-relative file paths to copy into the workspace at creation time |
+| Option           | Type            | Default | Description                                                         |
+| ---------------- | --------------- | ------- | ------------------------------------------------------------------- |
+| `sandbox`        | SandboxProvider | —       | **Required.** Sandbox provider (e.g. `docker()`)                    |
+| `hooks`          | SandboxHooks    | —       | One-time setup hooks to run when the sandbox is first created       |
+| `copyToWorktree` | string[]        | —       | Host-relative file paths to copy into the worktree at creation time |
 
 ## How it works
 
@@ -630,7 +630,7 @@ Removes the Podman image.
 | `name`                     | string             | —                             | Display name for the run, shown as a prefix in log output                                                                                                  |
 | `promptArgs`               | PromptArgs         | —                             | Key-value map for `{{KEY}}` placeholder substitution                                                                                                       |
 | `branchStrategy`           | BranchStrategy     | per-provider default          | Branch strategy: `{ type: 'head' }`, `{ type: 'merge-to-head' }`, or `{ type: 'branch', branch: '…' }`                                                     |
-| `copyToWorkspace`          | string[]           | —                             | Host-relative file paths to copy into the sandbox before start (not supported with `branchStrategy: { type: 'head' }`)                                     |
+| `copyToWorktree`           | string[]           | —                             | Host-relative file paths to copy into the sandbox before start (not supported with `branchStrategy: { type: 'head' }`)                                     |
 | `logging`                  | object             | file (auto-generated)         | `{ type: 'file', path }` or `{ type: 'stdout' }`                                                                                                           |
 | `completionSignal`         | string \| string[] | `<promise>COMPLETE</promise>` | String or array of strings the agent emits to stop the iteration loop early                                                                                |
 | `idleTimeoutSeconds`       | number             | `600`                         | Idle timeout in seconds — resets on each agent output event                                                                                                |
@@ -708,13 +708,13 @@ Sandcastle ships with built-in providers for Docker, Podman, and Vercel, but you
 
 Both provider types return a **sandbox handle** from their `create()` function. The handle exposes:
 
-| Method          | Required | Description                                                                  |
-| --------------- | -------- | ---------------------------------------------------------------------------- |
-| `exec`          | Both     | Run a command, optionally streaming stdout line-by-line via `options.onLine` |
-| `close`         | Both     | Tear down the sandbox                                                        |
-| `copyIn`        | Isolated | Copy a file or directory from the host into the sandbox                      |
-| `copyOut`       | Isolated | Copy a file from the sandbox to the host                                     |
-| `workspacePath` | Both     | Absolute path to the workspace inside the sandbox                            |
+| Method         | Required | Description                                                                  |
+| -------------- | -------- | ---------------------------------------------------------------------------- |
+| `exec`         | Both     | Run a command, optionally streaming stdout line-by-line via `options.onLine` |
+| `close`        | Both     | Tear down the sandbox                                                        |
+| `copyIn`       | Isolated | Copy a file or directory from the host into the sandbox                      |
+| `copyOut`      | Isolated | Copy a file from the sandbox to the host                                     |
+| `worktreePath` | Both     | Absolute path to the repo directory inside the sandbox                       |
 
 ### `ExecResult`
 
@@ -748,10 +748,10 @@ const localProcess = () =>
     create: async (
       options: BindMountCreateOptions,
     ): Promise<BindMountSandboxHandle> => {
-      const workspacePath = options.workspacePath;
+      const worktreePath = options.worktreePath;
 
       return {
-        workspacePath,
+        worktreePath,
 
         exec: (
           command: string,
@@ -761,7 +761,7 @@ const localProcess = () =>
             const onLine = opts.onLine;
             return new Promise((resolve, reject) => {
               const proc = spawn("sh", ["-c", command], {
-                cwd: opts?.cwd ?? workspacePath,
+                cwd: opts?.cwd ?? worktreePath,
                 stdio: ["ignore", "pipe", "pipe"],
               });
 
@@ -793,7 +793,7 @@ const localProcess = () =>
             execFile(
               "sh",
               ["-c", command],
-              { cwd: opts?.cwd ?? workspacePath, maxBuffer: 10 * 1024 * 1024 },
+              { cwd: opts?.cwd ?? worktreePath, maxBuffer: 10 * 1024 * 1024 },
               (error, stdout, stderr) => {
                 if (error && error.code === undefined) {
                   reject(new Error(`exec failed: ${error.message}`));
@@ -838,11 +838,11 @@ const tempDir = () =>
     name: "temp-dir",
     create: async (): Promise<IsolatedSandboxHandle> => {
       const root = await mkdtemp(join(tmpdir(), "sandbox-"));
-      const workspacePath = join(root, "workspace");
-      await mkdir(workspacePath, { recursive: true });
+      const worktreePath = join(root, "workspace");
+      await mkdir(worktreePath, { recursive: true });
 
       return {
-        workspacePath,
+        worktreePath,
 
         exec: (
           command: string,
@@ -852,7 +852,7 @@ const tempDir = () =>
             const onLine = opts.onLine;
             return new Promise((resolve, reject) => {
               const proc = spawn("sh", ["-c", command], {
-                cwd: opts?.cwd ?? workspacePath,
+                cwd: opts?.cwd ?? worktreePath,
                 stdio: ["ignore", "pipe", "pipe"],
               });
 
@@ -884,7 +884,7 @@ const tempDir = () =>
             execFile(
               "sh",
               ["-c", command],
-              { cwd: opts?.cwd ?? workspacePath, maxBuffer: 10 * 1024 * 1024 },
+              { cwd: opts?.cwd ?? worktreePath, maxBuffer: 10 * 1024 * 1024 },
               (error, stdout, stderr) => {
                 if (error && error.code === undefined) {
                   reject(new Error(`exec failed: ${error.message}`));

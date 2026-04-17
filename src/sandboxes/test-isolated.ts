@@ -30,11 +30,11 @@ export const testIsolated = (): IsolatedSandboxProvider =>
     name: "test-isolated",
     create: async (): Promise<IsolatedSandboxHandle> => {
       const sandboxRoot = await mkdtemp(join(tmpdir(), "sandcastle-test-"));
-      const workspacePath = join(sandboxRoot, "workspace");
-      await mkdir(workspacePath, { recursive: true });
+      const worktreePath = join(sandboxRoot, "workspace");
+      await mkdir(worktreePath, { recursive: true });
 
       return {
-        workspacePath,
+        worktreePath,
 
         exec: (
           command: string,
@@ -48,7 +48,7 @@ export const testIsolated = (): IsolatedSandboxProvider =>
             const onLine = options.onLine;
             return new Promise((resolve, reject) => {
               const proc = spawn("sh", ["-c", command], {
-                cwd: options?.cwd ?? workspacePath,
+                cwd: options?.cwd ?? worktreePath,
                 stdio: ["ignore", "pipe", "pipe"],
               });
 
@@ -84,7 +84,7 @@ export const testIsolated = (): IsolatedSandboxProvider =>
               "sh",
               ["-c", command],
               {
-                cwd: options?.cwd ?? workspacePath,
+                cwd: options?.cwd ?? worktreePath,
                 maxBuffer: 10 * 1024 * 1024,
               },
               (error, stdout, stderr) => {

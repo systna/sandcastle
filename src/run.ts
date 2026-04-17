@@ -20,10 +20,7 @@ import { resolveEnv } from "./EnvResolver.js";
 import { formatErrorMessage } from "./ErrorHandler.js";
 import type { SandboxError } from "./errors.js";
 import { mergeProviderEnv } from "./mergeProviderEnv.js";
-import {
-  generateTempBranchName,
-  getCurrentBranch,
-} from "./WorkspaceManager.js";
+import { generateTempBranchName, getCurrentBranch } from "./WorktreeManager.js";
 import {
   type PromptArgs,
   substitutePromptArgs,
@@ -164,7 +161,7 @@ export interface RunOptions {
   /** Optional name for the run, shown as a prefix in log output */
   readonly name?: string;
   /** Paths relative to the host repo root to copy into the worktree before sandbox start. */
-  readonly copyToWorkspace?: string[];
+  readonly copyToWorktree?: string[];
   /** Branch strategy — controls how the agent's changes relate to branches.
    * Defaults to { type: "head" } for bind-mount providers and { type: "merge-to-head" } for isolated providers. */
   readonly branchStrategy?: BranchStrategy;
@@ -185,8 +182,8 @@ export interface RunResult {
   readonly branch: string;
   /** Path to the log file, if logging was drained to a file. */
   readonly logFilePath?: string;
-  /** Host path to the preserved workspace, set when the run succeeded but the workspace had uncommitted changes. */
-  readonly preservedWorkspacePath?: string;
+  /** Host path to the preserved worktree, set when the run succeeded but the worktree had uncommitted changes. */
+  readonly preservedWorktreePath?: string;
 }
 
 export const run = async (options: RunOptions): Promise<RunResult> => {
@@ -213,14 +210,14 @@ export const run = async (options: RunOptions): Promise<RunResult> => {
     );
   }
 
-  // Validate: copyToWorkspace is incompatible with head strategy
+  // Validate: copyToWorktree is incompatible with head strategy
   if (
     effectiveBranchType === "head" &&
-    options.copyToWorkspace &&
-    options.copyToWorkspace.length > 0
+    options.copyToWorktree &&
+    options.copyToWorktree.length > 0
   ) {
     throw new Error(
-      "copyToWorkspace is not supported with head branch strategy. " +
+      "copyToWorktree is not supported with head branch strategy. " +
         "In head mode the host working directory is bind-mounted directly.",
     );
   }
@@ -299,7 +296,7 @@ export const run = async (options: RunOptions): Promise<RunResult> => {
       Layer.succeed(SandboxConfig, {
         env,
         hostRepoDir,
-        copyToWorkspace: options.copyToWorkspace,
+        copyToWorktree: options.copyToWorktree,
         name: options.name,
         sandboxProvider: options.sandbox,
         branchStrategy,

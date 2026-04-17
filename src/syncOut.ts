@@ -166,21 +166,21 @@ export const syncOut = (
   handle: IsolatedSandboxHandle,
 ): Effect.Effect<void, SyncError> =>
   Effect.gen(function* () {
-    const workspacePath = handle.workspacePath;
+    const worktreePath = handle.worktreePath;
 
     const hostHead = (yield* execHost(
       "git rev-parse HEAD",
       hostRepoDir,
     )).trim();
     const sandboxHead = (yield* execOk(handle, "git rev-parse HEAD", {
-      cwd: workspacePath,
+      cwd: worktreePath,
     })).stdout.trim();
 
     const hasCommits = hostHead !== sandboxHead;
 
     // Check for uncommitted changes
     const diffResult = yield* execSandbox(handle, "git diff HEAD", {
-      cwd: workspacePath,
+      cwd: worktreePath,
     });
     const hasDiff =
       diffResult.exitCode === 0 && diffResult.stdout.trim().length > 0;
@@ -189,7 +189,7 @@ export const syncOut = (
     const lsFilesResult = yield* execSandbox(
       handle,
       "git ls-files --others --exclude-standard",
-      { cwd: workspacePath },
+      { cwd: worktreePath },
     );
     const hasUntracked =
       lsFilesResult.exitCode === 0 && lsFilesResult.stdout.trim().length > 0;
@@ -224,7 +224,7 @@ export const syncOut = (
         yield* execOk(
           handle,
           `git format-patch "${hostHead}..HEAD" -o "${sandboxPatchDir}"`,
-          { cwd: workspacePath },
+          { cwd: worktreePath },
         );
 
         const lsResult = yield* execOk(handle, `ls -1 "${sandboxPatchDir}"`);
@@ -269,7 +269,7 @@ export const syncOut = (
     if (hasUntracked) {
       const untrackedDir = join(patchDir, "untracked");
       for (const relPath of untrackedFiles) {
-        const sandboxFilePath = `${workspacePath}/${relPath}`;
+        const sandboxFilePath = `${worktreePath}/${relPath}`;
         const hostFilePath = join(untrackedDir, relPath);
         yield* Effect.tryPromise({
           try: async () => {

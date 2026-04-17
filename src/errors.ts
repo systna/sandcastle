@@ -45,8 +45,8 @@ export class PromptError extends Data.TaggedError("PromptError")<{
 /** Agent invocation failed */
 export class AgentError extends Data.TaggedError("AgentError")<{
   readonly message: string;
-  /** Host path to the preserved workspace, set when the workspace was kept after failure. */
-  readonly preservedWorkspacePath?: string;
+  /** Host path to the preserved worktree, set when the worktree was kept after failure. */
+  readonly preservedWorktreePath?: string;
 }> {}
 
 /** .sandcastle/ config directory missing */
@@ -65,8 +65,8 @@ export class AgentIdleTimeoutError extends Data.TaggedError(
 )<{
   readonly message: string;
   readonly timeoutMs: number;
-  /** Host path to the preserved workspace, set when the workspace was kept after failure. */
-  readonly preservedWorkspacePath?: string;
+  /** Host path to the preserved worktree, set when the worktree was kept after failure. */
+  readonly preservedWorktreePath?: string;
 }> {}
 
 /** Git worktree create or prune timed out */
@@ -87,9 +87,9 @@ export class ContainerStartTimeoutError extends Data.TaggedError(
   readonly timeoutMs: number;
 }> {}
 
-/** Copying files to workspace timed out */
-export class CopyToWorkspaceTimeoutError extends Data.TaggedError(
-  "CopyToWorkspaceTimeoutError",
+/** Copying files to worktree timed out */
+export class CopyToWorktreeTimeoutError extends Data.TaggedError(
+  "CopyToWorktreeTimeoutError",
 )<{
   readonly message: string;
   readonly timeoutMs: number;
@@ -175,7 +175,7 @@ export type SandboxError =
   | AgentIdleTimeoutError
   | WorktreeTimeoutError
   | ContainerStartTimeoutError
-  | CopyToWorkspaceTimeoutError
+  | CopyToWorktreeTimeoutError
   | SyncInTimeoutError
   | HookTimeoutError
   | GitSetupTimeoutError

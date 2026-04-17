@@ -26,7 +26,7 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, resolve } from "node:path";
 import type { MountConfig } from "../MountConfig.js";
-import { SANDBOX_WORKSPACE_DIR } from "../SandboxFactory.js";
+import { SANDBOX_REPO_DIR } from "../SandboxFactory.js";
 
 export interface PodmanOptions {
   /** Podman image name (default: derived from repo directory name). */
@@ -89,9 +89,9 @@ export const podman = (options?: PodmanOptions): SandboxProvider => {
     ): Promise<BindMountSandboxHandle> => {
       const containerName = `sandcastle-${randomUUID()}`;
 
-      const workspacePath =
+      const worktreePath =
         createOptions.mounts.find(
-          (m) => m.hostPath === createOptions.workspacePath,
+          (m) => m.hostPath === createOptions.worktreePath,
         )?.sandboxPath ?? "/home/agent/workspace";
 
       // Build volume mount strings with optional SELinux label (internal + user mounts)
@@ -143,7 +143,7 @@ export const podman = (options?: PodmanOptions): SandboxProvider => {
             ...usernsArgs,
             ...networkArgs,
             "-w",
-            workspacePath,
+            worktreePath,
             ...envArgs,
             ...volumeArgs,
             "--entrypoint",
@@ -181,7 +181,7 @@ export const podman = (options?: PodmanOptions): SandboxProvider => {
       process.on("SIGTERM", onSignal);
 
       const handle: BindMountSandboxHandle = {
-        workspacePath,
+        worktreePath,
 
         exec: (
           command: string,
@@ -328,7 +328,7 @@ const resolveHostPath = (hostPath: string): string => {
 const resolveSandboxPath = (sandboxPath: string): string =>
   isAbsolute(sandboxPath)
     ? sandboxPath
-    : resolve(SANDBOX_WORKSPACE_DIR, sandboxPath);
+    : resolve(SANDBOX_REPO_DIR, sandboxPath);
 
 const resolveUserMounts = (
   mounts: readonly MountConfig[],

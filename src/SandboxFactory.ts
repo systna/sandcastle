@@ -12,8 +12,8 @@ import {
   type DockerError,
   type SandboxError,
 } from "./errors.js";
-import * as WorkspaceManager from "./WorkspaceManager.js";
-import { copyToWorkspace } from "./CopyToWorkspace.js";
+import * as WorktreeManager from "./WorktreeManager.js";
+import { copyToWorktree } from "./CopyToWorktree.js";
 import { Display } from "./Display.js";
 import type {
   SandboxProvider,
@@ -111,13 +111,13 @@ export const makeSandboxLayerFromHandle = (
   });
 
 /** The mount point inside the sandbox where the project worktree is bound. */
-export const SANDBOX_WORKSPACE_DIR = "/home/agent/workspace";
+export const SANDBOX_REPO_DIR = "/home/agent/workspace";
 
 export interface SandboxInfo {
-  /** Host-side path to the workspace directory (worktree/branch mode only). */
-  readonly hostWorkspacePath?: string;
-  /** Absolute path to the workspace inside the sandbox, as reported by the provider. */
-  readonly sandboxWorkspacePath: string;
+  /** Host-side path to the worktree directory (worktree/branch mode only). */
+  readonly hostWorktreePath?: string;
+  /** Absolute path to the worktree inside the sandbox, as reported by the provider. */
+  readonly sandboxRepoPath: string;
   /** Sync changes from the sandbox to the host worktree.
    *  For isolated providers, runs syncOut. For bind-mount providers, this is a no-op. */
   readonly applyToHost: () => Effect.Effect<void, SyncError>;
@@ -125,8 +125,8 @@ export interface SandboxInfo {
 
 export interface WithSandboxResult<A> {
   readonly value: A;
-  /** Host path to the preserved workspace, set when the workspace was left behind due to uncommitted changes. */
-  readonly preservedWorkspacePath?: string;
+  /** Host path to the preserved worktree, set when the worktree was left behind due to uncommitted changes. */
+  readonly preservedWorktreePath?: string;
 }
 
 export class SandboxFactory extends Context.Tag("SandboxFactory")<
@@ -148,7 +148,7 @@ export class SandboxConfig extends Context.Tag("SandboxConfig")<
     readonly env: Record<string, string>;
     readonly hostRepoDir: string;
     /** Paths relative to the host repo root to copy into the worktree before sandbox start. */
-    readonly copyToWorkspace?: string[];
+    readonly copyToWorktree?: string[];
     /** When specified, the run name is included in the auto-generated branch and worktree names. */
     readonly name?: string;
     /** Sandbox provider — delegates sandbox lifecycle to the provider. */
@@ -180,7 +180,7 @@ const cleanupWorktree = (
   worktreePath: string,
   exit: Exit.Exit<unknown, unknown>,
 ): Effect.Effect<string | undefined, WorktreeError> =>
-  WorkspaceManager.hasUncommittedChanges(worktreePath).pipe(
+  WorktreeManager.hasUncommittedChanges(worktreePath).pipe(
     Effect.catchAll(() => Effect.succeed(false)),
     Effect.flatMap((isDirty) => {
       if (isDirty) {
@@ -195,7 +195,7 @@ const cleanupWorktree = (
       if (!Exit.isSuccess(exit)) {
         console.error(`\nWorktree removed (no uncommitted changes)`);
       }
-      return WorkspaceManager.remove(worktreePath).pipe(
+      return WorktreeManager.remove(worktreePath).pipe(
         Effect.map(() => undefined as string | undefined),
       );
     }),
@@ -214,13 +214,13 @@ const attachPreservedPath = <E>(
       return new AgentIdleTimeoutError({
         message: e.message,
         timeoutMs: e.timeoutMs,
-        preservedWorkspacePath: path,
+        preservedWorktreePath: path,
       }) as unknown as E | SandboxError;
     }
     if (e instanceof AgentError) {
       return new AgentError({
         message: e.message,
-        preservedWorkspacePath: path,
+        preservedWorktreePath: path,
       }) as unknown as E | SandboxError;
     }
   }
@@ -265,10 +265,10 @@ export const resolveGitMounts = (
 
 /** Shared acquire result type for the worktree-mode acquireUseRelease. */
 interface AcquireResult {
-  worktreeInfo: WorkspaceManager.WorktreeInfo;
+  worktreeInfo: WorktreeManager.WorktreeInfo;
   handle: BindMountSandboxHandle | IsolatedSandboxHandle;
   sandboxLayer: Layer.Layer<Sandbox>;
-  workspacePath: string;
+  worktreePath: string;
 }
 
 export const WorktreeDockerSandboxFactory = {
@@ -278,7 +278,7 @@ export const WorktreeDockerSandboxFactory = {
       const {
         env,
         hostRepoDir,
-        copyToWorkspace: copyPaths,
+        copyToWorktree: copyPaths,
         name,
         sandboxProvider,
         branchStrategy,
@@ -293,7 +293,7 @@ export const WorktreeDockerSandboxFactory = {
 
       /** Prune stale worktrees (best-effort), then create a fresh one. */
       const pruneAndCreate = () =>
-        WorkspaceManager.pruneStale(hostRepoDir).pipe(
+        WorktreeManager.pruneStale(hostRepoDir).pipe(
           Effect.catchAll((e) =>
             Effect.sync(() => {
               console.error(
@@ -304,11 +304,11 @@ export const WorktreeDockerSandboxFactory = {
           ),
           Effect.andThen(
             branch
-              ? WorkspaceManager.create(hostRepoDir, {
+              ? WorktreeManager.create(hostRepoDir, {
                   branch,
                   throwOnDuplicateWorktree,
                 })
-              : WorkspaceManager.create(hostRepoDir, { name }),
+              : WorktreeManager.create(hostRepoDir, { name }),
           ),
           Effect.provideService(FileSystem.FileSystem, fileSystem),
         );
@@ -335,20 +335,20 @@ export const WorktreeDockerSandboxFactory = {
                     env,
                     copyPaths,
                   }).pipe(
-                    Effect.map(({ handle, sandboxLayer, workspacePath }) => ({
+                    Effect.map(({ handle, sandboxLayer, worktreePath }) => ({
                       worktreeInfo,
                       handle,
                       sandboxLayer,
-                      workspacePath,
+                      worktreePath,
                     })),
                   ),
                 ),
               ),
               // Use
-              ({ worktreeInfo, sandboxLayer, workspacePath, handle }) =>
+              ({ worktreeInfo, sandboxLayer, worktreePath, handle }) =>
                 makeEffect({
-                  hostWorkspacePath: worktreeInfo.path,
-                  sandboxWorkspacePath: workspacePath,
+                  hostWorktreePath: worktreeInfo.path,
+                  sandboxRepoPath: worktreePath,
                   applyToHost: () =>
                     syncOut(worktreeInfo.path, handle as IsolatedSandboxHandle),
                 }).pipe(Effect.provide(sandboxLayer)) as Effect.Effect<
@@ -372,7 +372,7 @@ export const WorktreeDockerSandboxFactory = {
             ).pipe(
               Effect.map((value) => ({
                 value,
-                preservedWorkspacePath: preservedPath,
+                preservedWorktreePath: preservedPath,
               })),
               Effect.mapError((e: E | SandboxError) =>
                 attachPreservedPath(preservedPath, e),
@@ -399,13 +399,13 @@ export const WorktreeDockerSandboxFactory = {
                     env,
                     worktreeOrRepoPath: hostRepoDir,
                     gitMounts,
-                    workspaceDir: SANDBOX_WORKSPACE_DIR,
+                    repoDir: SANDBOX_REPO_DIR,
                   }),
                   // Use
-                  ({ sandboxLayer, workspacePath }) =>
+                  ({ sandboxLayer, worktreePath }) =>
                     makeEffect({
-                      hostWorkspacePath: hostRepoDir,
-                      sandboxWorkspacePath: workspacePath,
+                      hostWorktreePath: hostRepoDir,
+                      sandboxRepoPath: worktreePath,
                       applyToHost: () => Effect.void,
                     }).pipe(Effect.provide(sandboxLayer)) as Effect.Effect<
                       A,
@@ -421,7 +421,7 @@ export const WorktreeDockerSandboxFactory = {
                 ).pipe(
                   Effect.map((value) => ({
                     value,
-                    preservedWorkspacePath: undefined,
+                    preservedWorktreePath: undefined,
                   })),
                 ),
               ),
@@ -431,7 +431,7 @@ export const WorktreeDockerSandboxFactory = {
           // Worktree mode (merge-to-head or explicit branch)
           // Populated by the release phase when a worktree is preserved on failure,
           // so we can attach the path to recognized error types before they propagate.
-          let preservedWorkspacePath: string | undefined;
+          let preservedWorktreePath: string | undefined;
 
           return Effect.acquireUseRelease(
             // Acquire: prune stale worktrees (best-effort), create worktree, then start sandbox
@@ -439,12 +439,8 @@ export const WorktreeDockerSandboxFactory = {
               Effect.flatMap((worktreeInfo) =>
                 (copyPaths && copyPaths.length > 0
                   ? display.spinner(
-                      "Copying to workspace",
-                      copyToWorkspace(
-                        copyPaths,
-                        hostRepoDir,
-                        worktreeInfo.path,
-                      ),
+                      "Copying to worktree",
+                      copyToWorktree(copyPaths, hostRepoDir, worktreeInfo.path),
                     )
                   : Effect.succeed(undefined)
                 ).pipe(Effect.map(() => worktreeInfo)),
@@ -471,14 +467,14 @@ export const WorktreeDockerSandboxFactory = {
                         env,
                         worktreeOrRepoPath: worktreeInfo.path,
                         gitMounts,
-                        workspaceDir: SANDBOX_WORKSPACE_DIR,
+                        repoDir: SANDBOX_REPO_DIR,
                       }).pipe(
                         Effect.map(
-                          ({ handle, sandboxLayer, workspacePath }) => ({
+                          ({ handle, sandboxLayer, worktreePath }) => ({
                             worktreeInfo,
                             handle,
                             sandboxLayer,
-                            workspacePath,
+                            worktreePath,
                           }),
                         ),
                       ),
@@ -487,10 +483,10 @@ export const WorktreeDockerSandboxFactory = {
               }),
             ),
             // Use
-            ({ worktreeInfo, sandboxLayer, workspacePath }) =>
+            ({ worktreeInfo, sandboxLayer, worktreePath }) =>
               makeEffect({
-                hostWorkspacePath: worktreeInfo.path,
-                sandboxWorkspacePath: workspacePath,
+                hostWorktreePath: worktreeInfo.path,
+                sandboxRepoPath: worktreePath,
                 applyToHost: () => Effect.void,
               }).pipe(Effect.provide(sandboxLayer)) as Effect.Effect<
                 A,
@@ -505,7 +501,7 @@ export const WorktreeDockerSandboxFactory = {
               }).pipe(
                 Effect.andThen(cleanupWorktree(worktreeInfo.path, exit)),
                 Effect.tap((p) => {
-                  preservedWorkspacePath = p;
+                  preservedWorktreePath = p;
                 }),
                 Effect.asVoid,
                 Effect.orDie,
@@ -513,10 +509,10 @@ export const WorktreeDockerSandboxFactory = {
           ).pipe(
             Effect.map((value) => ({
               value,
-              preservedWorkspacePath,
+              preservedWorktreePath,
             })),
             Effect.mapError((e: E | SandboxError) =>
-              attachPreservedPath(preservedWorkspacePath, e),
+              attachPreservedPath(preservedWorktreePath, e),
             ),
           );
         },

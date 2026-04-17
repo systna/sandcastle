@@ -26,7 +26,7 @@ import { withSandboxLifecycle } from "./SandboxLifecycle.js";
 import {
   Sandbox as SandboxTag,
   SandboxFactory,
-  SANDBOX_WORKSPACE_DIR,
+  SANDBOX_REPO_DIR,
   resolveGitMounts,
 } from "./SandboxFactory.js";
 import type {
@@ -36,8 +36,8 @@ import type {
 } from "./SandboxProvider.js";
 import { startSandbox } from "./startSandbox.js";
 import { syncOut } from "./syncOut.js";
-import * as WorkspaceManager from "./WorkspaceManager.js";
-import { copyToWorkspace } from "./CopyToWorkspace.js";
+import * as WorktreeManager from "./WorktreeManager.js";
+import { copyToWorktree } from "./CopyToWorktree.js";
 
 export interface CreateSandboxOptions {
   /** Explicit branch for the worktree (required). */
@@ -52,7 +52,7 @@ export interface CreateSandboxOptions {
     }>;
   };
   /** Paths relative to the host repo root to copy into the worktree at creation time. */
-  readonly copyToWorkspace?: string[];
+  readonly copyToWorktree?: string[];
   /** When false, reuse an existing worktree instead of failing on collision. Default: true. */
   readonly throwOnDuplicateWorktree?: boolean;
   /** @internal Test-only overrides to bypass the sandbox provider. */
@@ -119,15 +119,15 @@ export interface SandboxInteractiveResult {
 }
 
 export interface CloseResult {
-  /** Host path to the preserved workspace, set when the workspace had uncommitted changes. */
-  readonly preservedWorkspacePath?: string;
+  /** Host path to the preserved worktree, set when the worktree had uncommitted changes. */
+  readonly preservedWorktreePath?: string;
 }
 
 export interface Sandbox {
-  /** The branch the workspace is on. */
+  /** The branch the worktree is on. */
   readonly branch: string;
-  /** Host path to the workspace. */
-  readonly workspacePath: string;
+  /** Host path to the worktree. */
+  readonly worktreePath: string;
   /** Invoke an agent inside the existing sandbox. */
   run(options: SandboxRunOptions): Promise<SandboxRunResult>;
   /** Launch an interactive agent session inside the existing sandbox. */
@@ -157,7 +157,7 @@ interface SandboxHandleContext {
 /**
  * @internal Builds a Sandbox handle with run() and interactive() methods.
  * The close callback controls teardown behavior — top-level createSandbox()
- * cleans up both container and worktree, while workspace-backed sandboxes
+ * cleans up both container and worktree, while worktree-backed sandboxes
  * only tear down the container.
  */
 const buildSandboxHandle = (
@@ -176,7 +176,7 @@ const buildSandboxHandle = (
 
   const sandboxHandle: Sandbox = {
     branch,
-    workspacePath: worktreePath,
+    worktreePath: worktreePath,
 
     run: async (runOptions: SandboxRunOptions): Promise<SandboxRunResult> => {
       const {
@@ -194,7 +194,7 @@ const buildSandboxHandle = (
 
       const userArgs = runOptions.promptArgs ?? {};
       const currentHostBranch = await Effect.runPromise(
-        WorkspaceManager.getCurrentBranch(hostRepoDir),
+        WorktreeManager.getCurrentBranch(hostRepoDir),
       );
 
       const displayRef = Ref.unsafeMake<ReadonlyArray<DisplayEntry>>([]);
@@ -245,14 +245,14 @@ const buildSandboxHandle = (
       const reuseFactoryLayer = Layer.succeed(SandboxFactory, {
         withSandbox: (makeEffect) =>
           makeEffect({
-            hostWorkspacePath: worktreePath,
-            sandboxWorkspacePath: sandboxRepoDir,
+            hostWorktreePath: worktreePath,
+            sandboxRepoPath: sandboxRepoDir,
             applyToHost,
           }).pipe(
             Effect.provide(sandboxLayer),
             Effect.map((value) => ({
               value,
-              preservedWorkspacePath: undefined,
+              preservedWorktreePath: undefined,
             })),
           ) as any,
       });
@@ -313,7 +313,7 @@ const buildSandboxHandle = (
 
           const userArgs = interactiveOptions.promptArgs ?? {};
           const currentHostBranch =
-            yield* WorkspaceManager.getCurrentBranch(hostRepoDir);
+            yield* WorktreeManager.getCurrentBranch(hostRepoDir);
 
           yield* validateNoBuiltInArgOverride(userArgs);
           const effectiveArgs = {
@@ -333,7 +333,7 @@ const buildSandboxHandle = (
               hostRepoDir,
               sandboxRepoDir,
               branch,
-              hostWorkspacePath: worktreePath,
+              hostWorktreePath: worktreePath,
               applyToHost,
             },
             (ctx) =>
@@ -383,8 +383,8 @@ const buildSandboxHandle = (
   return sandboxHandle;
 };
 
-/** @internal Options for createSandboxFromWorkspace — used by workspace.createSandbox(). */
-export interface CreateSandboxFromWorkspaceOptions {
+/** @internal Options for createSandboxFromWorktree — used by worktree.createSandbox(). */
+export interface CreateSandboxFromWorktreeOptions {
   readonly branch: string;
   readonly worktreePath: string;
   readonly hostRepoDir: string;
@@ -395,7 +395,7 @@ export interface CreateSandboxFromWorkspaceOptions {
       sudo?: boolean;
     }>;
   };
-  readonly copyToWorkspace?: string[];
+  readonly copyToWorktree?: string[];
   readonly _test?: {
     readonly buildSandboxLayer?: (
       sandboxDir: string,
@@ -404,24 +404,24 @@ export interface CreateSandboxFromWorkspaceOptions {
 }
 
 /**
- * @internal Creates a sandbox backed by an existing workspace worktree.
+ * @internal Creates a sandbox backed by an existing worktree.
  * Split ownership: close() tears down the container only, leaving the worktree intact.
- * Used by Workspace.createSandbox().
+ * Used by Worktree.createSandbox().
  */
-export const createSandboxFromWorkspace = async (
-  options: CreateSandboxFromWorkspaceOptions,
+export const createSandboxFromWorktree = async (
+  options: CreateSandboxFromWorktreeOptions,
 ): Promise<Sandbox> => {
   const { branch, worktreePath, hostRepoDir } = options;
   const isTestMode = !!options._test?.buildSandboxLayer;
 
   // 1. Copy files if requested (bind-mount only)
   if (
-    options.copyToWorkspace &&
-    options.copyToWorkspace.length > 0 &&
+    options.copyToWorktree &&
+    options.copyToWorktree.length > 0 &&
     options.sandbox.tag !== "isolated"
   ) {
     await Effect.runPromise(
-      copyToWorkspace(options.copyToWorkspace, hostRepoDir, worktreePath),
+      copyToWorktree(options.copyToWorktree, hostRepoDir, worktreePath),
     );
   }
 
@@ -455,7 +455,7 @@ export const createSandboxFromWorkspace = async (
         provider,
         hostRepoDir: worktreePath,
         env,
-        copyPaths: options.copyToWorkspace,
+        copyPaths: options.copyToWorktree,
       });
     } else {
       startEffect = resolveGitMounts(join(hostRepoDir, ".git")).pipe(
@@ -468,7 +468,7 @@ export const createSandboxFromWorkspace = async (
             env,
             worktreeOrRepoPath: worktreePath,
             gitMounts,
-            workspaceDir: SANDBOX_WORKSPACE_DIR,
+            repoDir: SANDBOX_REPO_DIR,
           }),
         ),
       );
@@ -478,7 +478,7 @@ export const createSandboxFromWorkspace = async (
 
     providerHandle = startResult.handle;
     sandboxLayer = startResult.sandboxLayer;
-    sandboxRepoDir = startResult.workspacePath;
+    sandboxRepoDir = startResult.worktreePath;
   }
 
   // 3. Run onSandboxReady hooks
@@ -508,7 +508,7 @@ export const createSandboxFromWorkspace = async (
       ? () => syncOut(worktreePath, providerHandle as IsolatedSandboxHandle)
       : () => Effect.void;
 
-  // 5. Build and return sandbox handle — container-only close (workspace owns worktree)
+  // 5. Build and return sandbox handle — container-only close (worktree owns worktree)
   let closed = false;
 
   return buildSandboxHandle(
@@ -522,10 +522,10 @@ export const createSandboxFromWorkspace = async (
       applyToHost,
     },
     async () => {
-      if (closed) return { preservedWorkspacePath: undefined };
+      if (closed) return { preservedWorktreePath: undefined };
       closed = true;
       if (providerHandle) await providerHandle.close();
-      return { preservedWorkspacePath: undefined };
+      return { preservedWorktreePath: undefined };
     },
   );
 };
@@ -544,11 +544,11 @@ export const createSandbox = async (
 
   // 1. Prune stale worktrees + create worktree on the explicit branch
   const worktreeInfo = await Effect.runPromise(
-    WorkspaceManager.pruneStale(hostRepoDir)
+    WorktreeManager.pruneStale(hostRepoDir)
       .pipe(Effect.catchAll(() => Effect.void))
       .pipe(
         Effect.andThen(
-          WorkspaceManager.create(hostRepoDir, {
+          WorktreeManager.create(hostRepoDir, {
             branch,
             throwOnDuplicateWorktree: options.throwOnDuplicateWorktree,
           }),
@@ -561,12 +561,12 @@ export const createSandbox = async (
 
   // 2. Copy files if requested (bind-mount only; isolated providers handle this in startSandbox)
   if (
-    options.copyToWorkspace &&
-    options.copyToWorkspace.length > 0 &&
+    options.copyToWorktree &&
+    options.copyToWorktree.length > 0 &&
     options.sandbox.tag !== "isolated"
   ) {
     await Effect.runPromise(
-      copyToWorkspace(options.copyToWorkspace, hostRepoDir, worktreePath),
+      copyToWorktree(options.copyToWorktree, hostRepoDir, worktreePath),
     );
   }
 
@@ -601,7 +601,7 @@ export const createSandbox = async (
         provider,
         hostRepoDir: worktreePath,
         env,
-        copyPaths: options.copyToWorkspace,
+        copyPaths: options.copyToWorktree,
       });
     } else {
       startEffect = resolveGitMounts(join(hostRepoDir, ".git")).pipe(
@@ -614,7 +614,7 @@ export const createSandbox = async (
             env,
             worktreeOrRepoPath: worktreePath,
             gitMounts,
-            workspaceDir: SANDBOX_WORKSPACE_DIR,
+            repoDir: SANDBOX_REPO_DIR,
           }),
         ),
       );
@@ -624,7 +624,7 @@ export const createSandbox = async (
 
     providerHandle = startResult.handle;
     sandboxLayer = startResult.sandboxLayer;
-    sandboxRepoDir = startResult.workspacePath;
+    sandboxRepoDir = startResult.worktreePath;
   }
 
   // 4. Run onSandboxReady hooks
@@ -673,7 +673,7 @@ export const createSandbox = async (
 
   // 7. Build close function
   const doClose = async (): Promise<CloseResult> => {
-    if (closed) return { preservedWorkspacePath: undefined };
+    if (closed) return { preservedWorktreePath: undefined };
     closed = true;
 
     // Close provider handle
@@ -683,23 +683,23 @@ export const createSandbox = async (
 
     // Check for uncommitted changes
     const isDirty = await Effect.runPromise(
-      WorkspaceManager.hasUncommittedChanges(worktreePath).pipe(
+      WorktreeManager.hasUncommittedChanges(worktreePath).pipe(
         Effect.catchAll(() => Effect.succeed(false)),
       ),
     );
 
     if (isDirty) {
-      return { preservedWorkspacePath: worktreePath };
+      return { preservedWorktreePath: worktreePath };
     }
 
     // Remove worktree
     await Effect.runPromise(
-      WorkspaceManager.remove(worktreePath).pipe(
+      WorktreeManager.remove(worktreePath).pipe(
         Effect.catchAll(() => Effect.void),
       ),
     );
 
-    return { preservedWorkspacePath: undefined };
+    return { preservedWorktreePath: undefined };
   };
 
   // 8. Return the Sandbox handle

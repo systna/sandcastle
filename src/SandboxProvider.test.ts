@@ -9,7 +9,7 @@ import {
 
 describe("createBindMountSandboxProvider", () => {
   const makeMockHandle = (): BindMountSandboxHandle => ({
-    workspacePath: "/workspace",
+    worktreePath: "/workspace",
     exec: vi.fn(async () => ({ stdout: "", stderr: "", exitCode: 0 })),
     close: vi.fn(async () => {}),
   });
@@ -33,7 +33,7 @@ describe("createBindMountSandboxProvider", () => {
     });
 
     const options = {
-      workspacePath: "/tmp/worktree",
+      worktreePath: "/tmp/worktree",
       hostRepoPath: "/home/user/repo",
       mounts: [{ hostPath: "/a", sandboxPath: "/b" }],
       env: { FOO: "bar" },
@@ -66,7 +66,7 @@ describe("createBindMountSandboxProvider", () => {
 
 describe("createIsolatedSandboxProvider", () => {
   const makeMockHandle = (): IsolatedSandboxHandle => ({
-    workspacePath: "/workspace",
+    worktreePath: "/workspace",
     exec: vi.fn(async () => ({ stdout: "", stderr: "", exitCode: 0 })),
     copyIn: vi.fn(async () => {}),
     copyFileOut: vi.fn(async () => {}),

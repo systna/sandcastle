@@ -58,10 +58,10 @@ describe("interactive arg collection", () => {
       name: "test-interactive",
       create: async (options) => {
         const handle: BindMountSandboxHandle = {
-          workspacePath: options.workspacePath,
+          worktreePath: options.worktreePath,
           exec: async (command) => {
             const result = execSync(command, {
-              cwd: options.workspacePath,
+              cwd: options.worktreePath,
               encoding: "utf-8",
               stdio: ["pipe", "pipe", "pipe"],
             });

@@ -9,7 +9,7 @@ import { resolvePrompt } from "./PromptResolver.js";
 import {
   makeSandboxLayerFromHandle,
   resolveGitMounts,
-  SANDBOX_WORKSPACE_DIR,
+  SANDBOX_REPO_DIR,
 } from "./SandboxFactory.js";
 import { withSandboxLifecycle, type SandboxHooks } from "./SandboxLifecycle.js";
 import type {
@@ -21,14 +21,11 @@ import type {
 } from "./SandboxProvider.js";
 import { resolveEnv } from "./EnvResolver.js";
 import { mergeProviderEnv } from "./mergeProviderEnv.js";
-import { copyToWorkspace } from "./CopyToWorkspace.js";
+import { copyToWorktree } from "./CopyToWorktree.js";
 import { startSandbox } from "./startSandbox.js";
 import { syncOut } from "./syncOut.js";
-import * as WorkspaceManager from "./WorkspaceManager.js";
-import {
-  generateTempBranchName,
-  getCurrentBranch,
-} from "./WorkspaceManager.js";
+import * as WorktreeManager from "./WorktreeManager.js";
+import { generateTempBranchName, getCurrentBranch } from "./WorktreeManager.js";
 import {
   type PromptArgs,
   substitutePromptArgs,
@@ -55,7 +52,7 @@ export interface InteractiveOptions {
   /** Hooks to run during sandbox lifecycle */
   readonly hooks?: SandboxHooks;
   /** Paths relative to the host repo root to copy into the worktree before sandbox start. */
-  readonly copyToWorkspace?: string[];
+  readonly copyToWorktree?: string[];
   /** Key-value map for {{KEY}} placeholder substitution in prompts */
   readonly promptArgs?: PromptArgs;
   /** Environment variables to inject into the sandbox. */
@@ -67,8 +64,8 @@ export interface InteractiveResult {
   readonly commits: { sha: string }[];
   /** The branch name the agent worked on. */
   readonly branch: string;
-  /** Host path to the preserved workspace, if workspace had uncommitted changes. */
-  readonly preservedWorkspacePath?: string;
+  /** Host path to the preserved worktree, if worktree had uncommitted changes. */
+  readonly preservedWorktreePath?: string;
   /** Exit code of the interactive process. */
   readonly exitCode: number;
 }
@@ -105,14 +102,14 @@ export const interactive = async (
     );
   }
 
-  // Validate: copyToWorkspace is incompatible with head strategy
+  // Validate: copyToWorktree is incompatible with head strategy
   if (
     branchStrategy.type === "head" &&
-    options.copyToWorkspace &&
-    options.copyToWorkspace.length > 0
+    options.copyToWorktree &&
+    options.copyToWorktree.length > 0
   ) {
     throw new Error(
-      "copyToWorkspace is not supported with head branch strategy. " +
+      "copyToWorktree is not supported with head branch strategy. " +
         "In head mode the host working directory is bind-mounted directly.",
     );
   }
@@ -210,16 +207,16 @@ export const interactive = async (
     });
 
     // 5. Create worktree (unless head mode)
-    let worktreeInfo: WorkspaceManager.WorktreeInfo | undefined;
+    let worktreeInfo: WorktreeManager.WorktreeInfo | undefined;
 
     if (!isHeadMode) {
       worktreeInfo = yield* d.taskLog("Creating worktree", () =>
-        WorkspaceManager.pruneStale(hostRepoDir).pipe(
+        WorktreeManager.pruneStale(hostRepoDir).pipe(
           Effect.catchAll(() => Effect.void),
           Effect.andThen(
             branch
-              ? WorkspaceManager.create(hostRepoDir, { branch })
-              : WorkspaceManager.create(hostRepoDir, { name: options.name }),
+              ? WorktreeManager.create(hostRepoDir, { branch })
+              : WorktreeManager.create(hostRepoDir, { name: options.name }),
           ),
         ),
       );
@@ -228,12 +225,12 @@ export const interactive = async (
       if (
         (sandboxProvider.tag === "bind-mount" ||
           sandboxProvider.tag === "none") &&
-        options.copyToWorkspace &&
-        options.copyToWorkspace.length > 0
+        options.copyToWorktree &&
+        options.copyToWorktree.length > 0
       ) {
-        yield* d.taskLog("Copying files to workspace", () =>
-          copyToWorkspace(
-            options.copyToWorkspace!,
+        yield* d.taskLog("Copying files to worktree", () =>
+          copyToWorktree(
+            options.copyToWorktree!,
             hostRepoDir,
             worktreeInfo!.path,
           ),
@@ -249,10 +246,10 @@ export const interactive = async (
 
     if (sandboxProvider.tag === "none") {
       // No-sandbox: run directly on the host, no container
-      const workspacePath = isHeadMode ? hostRepoDir : worktreeInfo!.path;
+      const worktreePath = isHeadMode ? hostRepoDir : worktreeInfo!.path;
       handle = yield* Effect.promise(() =>
         sandboxProvider.create({
-          workspacePath,
+          worktreePath,
           env: effectiveEnv,
         }),
       );
@@ -262,7 +259,7 @@ export const interactive = async (
           provider: sandboxProvider,
           hostRepoDir: worktreeInfo!.path,
           env: effectiveEnv,
-          copyPaths: options.copyToWorkspace,
+          copyPaths: options.copyToWorktree,
         }),
       );
       handle = startResult.handle;
@@ -276,7 +273,7 @@ export const interactive = async (
           env: effectiveEnv,
           worktreeOrRepoPath: isHeadMode ? hostRepoDir : worktreeInfo!.path,
           gitMounts,
-          workspaceDir: SANDBOX_WORKSPACE_DIR,
+          repoDir: SANDBOX_REPO_DIR,
         }),
       );
       handle = startResult.handle;
@@ -295,7 +292,7 @@ export const interactive = async (
 
       // Build sandbox layer and run withSandboxLifecycle
       const sandboxLayer = makeSandboxLayerFromHandle(handle);
-      const workspacePath = handle.workspacePath;
+      const worktreePath = handle.worktreePath;
 
       const applyToHost =
         sandboxProvider.tag === "isolated" && worktreeInfo
@@ -305,10 +302,10 @@ export const interactive = async (
       const lifecycleEffect = withSandboxLifecycle(
         {
           hostRepoDir,
-          sandboxRepoDir: workspacePath,
+          sandboxRepoDir: worktreePath,
           hooks,
           branch: lifecycleBranch,
-          hostWorkspacePath: isHeadMode ? hostRepoDir : worktreeInfo?.path,
+          hostWorktreePath: isHeadMode ? hostRepoDir : worktreeInfo?.path,
           applyToHost,
         },
         (ctx) =>
@@ -333,7 +330,7 @@ export const interactive = async (
                 stdin: process.stdin,
                 stdout: process.stdout,
                 stderr: process.stderr,
-                cwd: workspacePath,
+                cwd: worktreePath,
               }),
             );
 
@@ -348,19 +345,19 @@ export const interactive = async (
       const exitCode = lifecycleResult.result;
 
       // Check for uncommitted changes (worktree mode only)
-      let preservedWorkspacePath: string | undefined;
+      let preservedWorktreePath: string | undefined;
       if (worktreeInfo) {
-        const hasUncommitted = yield* WorkspaceManager.hasUncommittedChanges(
+        const hasUncommitted = yield* WorktreeManager.hasUncommittedChanges(
           worktreeInfo.path,
         ).pipe(Effect.catchAll(() => Effect.succeed(false)));
         if (hasUncommitted) {
-          preservedWorkspacePath = worktreeInfo.path;
+          preservedWorktreePath = worktreeInfo.path;
         }
       }
 
       // Clean up worktree if not preserved
-      if (worktreeInfo && !preservedWorkspacePath) {
-        yield* WorkspaceManager.remove(worktreeInfo.path).pipe(
+      if (worktreeInfo && !preservedWorktreePath) {
+        yield* WorktreeManager.remove(worktreeInfo.path).pipe(
           Effect.catchAll(() => Effect.void),
         );
       }
@@ -370,22 +367,22 @@ export const interactive = async (
         Commits: String(lifecycleResult.commits.length),
         Branch: lifecycleResult.branch,
         "Exit code": String(exitCode),
-        ...(preservedWorkspacePath
-          ? { "Preserved worktree": preservedWorkspacePath }
+        ...(preservedWorktreePath
+          ? { "Preserved worktree": preservedWorktreePath }
           : {}),
       });
 
       return {
         commits: lifecycleResult.commits,
         branch: lifecycleResult.branch,
-        preservedWorkspacePath,
+        preservedWorktreePath,
         exitCode,
       };
     }).pipe(
       // On error, always clean up worktree (on success, handled above with preserve check)
       Effect.tapError(() =>
         worktreeInfo
-          ? WorkspaceManager.remove(worktreeInfo.path).pipe(
+          ? WorktreeManager.remove(worktreeInfo.path).pipe(
               Effect.catchAll(() => Effect.void),
             )
           : Effect.void,

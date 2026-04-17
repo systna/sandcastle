@@ -2,7 +2,7 @@ import { FileSystem } from "@effect/platform";
 import { Effect } from "effect";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { SANDBOX_WORKSPACE_DIR } from "./SandboxFactory.js";
+import { SANDBOX_REPO_DIR } from "./SandboxFactory.js";
 
 const GITIGNORE = `.env
 logs/
@@ -81,9 +81,9 @@ ENV PATH="/home/agent/.local/bin:$PATH"
 
 WORKDIR /home/agent
 
-# In worktree sandbox mode, Sandcastle bind-mounts the git worktree at ${SANDBOX_WORKSPACE_DIR}
-# and overrides the working directory to ${SANDBOX_WORKSPACE_DIR} at container start.
-# Structure your Dockerfile so that ${SANDBOX_WORKSPACE_DIR} can serve as the project root.
+# In worktree sandbox mode, Sandcastle bind-mounts the git worktree at ${SANDBOX_REPO_DIR}
+# and overrides the working directory to ${SANDBOX_REPO_DIR} at container start.
+# Structure your Dockerfile so that ${SANDBOX_REPO_DIR} can serve as the project root.
 ENTRYPOINT ["sleep", "infinity"]
 `;
 
@@ -110,9 +110,9 @@ USER agent
 
 WORKDIR /home/agent
 
-# In worktree sandbox mode, Sandcastle bind-mounts the git worktree at ${SANDBOX_WORKSPACE_DIR}
-# and overrides the working directory to ${SANDBOX_WORKSPACE_DIR} at container start.
-# Structure your Dockerfile so that ${SANDBOX_WORKSPACE_DIR} can serve as the project root.
+# In worktree sandbox mode, Sandcastle bind-mounts the git worktree at ${SANDBOX_REPO_DIR}
+# and overrides the working directory to ${SANDBOX_REPO_DIR} at container start.
+# Structure your Dockerfile so that ${SANDBOX_REPO_DIR} can serve as the project root.
 ENTRYPOINT ["sleep", "infinity"]
 `;
 
@@ -139,9 +139,9 @@ USER agent
 
 WORKDIR /home/agent
 
-# In worktree sandbox mode, Sandcastle bind-mounts the git worktree at ${SANDBOX_WORKSPACE_DIR}
-# and overrides the working directory to ${SANDBOX_WORKSPACE_DIR} at container start.
-# Structure your Dockerfile so that ${SANDBOX_WORKSPACE_DIR} can serve as the project root.
+# In worktree sandbox mode, Sandcastle bind-mounts the git worktree at ${SANDBOX_REPO_DIR}
+# and overrides the working directory to ${SANDBOX_REPO_DIR} at container start.
+# Structure your Dockerfile so that ${SANDBOX_REPO_DIR} can serve as the project root.
 ENTRYPOINT ["sleep", "infinity"]
 `;
 
@@ -168,9 +168,9 @@ USER agent
 
 WORKDIR /home/agent
 
-# In worktree sandbox mode, Sandcastle bind-mounts the git worktree at \${SANDBOX_WORKSPACE_DIR}
-# and overrides the working directory to \${SANDBOX_WORKSPACE_DIR} at container start.
-# Structure your Dockerfile so that \${SANDBOX_WORKSPACE_DIR} can serve as the project root.
+# In worktree sandbox mode, Sandcastle bind-mounts the git worktree at \${SANDBOX_REPO_DIR}
+# and overrides the working directory to \${SANDBOX_REPO_DIR} at container start.
+# Structure your Dockerfile so that \${SANDBOX_REPO_DIR} can serve as the project root.
 ENTRYPOINT ["sleep", "infinity"]
 `;
 
@@ -352,7 +352,7 @@ export function getNextStepsLines(
       `${step++}. Set the required env vars in .sandcastle/.env (see .sandcastle/.env.example)`,
       "   If you want to use your Claude subscription instead of an API key, see https://github.com/mattpocock/sandcastle/issues/191",
       `${step++}. Add "sandcastle": "npx tsx .sandcastle/${mainFilename}" to your package.json scripts`,
-      `${step++}. Templates use \`copyToWorkspace: ["node_modules"]\` to copy your host node_modules into the sandbox for fast startup — the \`npm install\` in the onSandboxReady hook is a safety net for platform-specific binaries. Adjust both if you use a different package manager`,
+      `${step++}. Templates use \`copyToWorktree: ["node_modules"]\` to copy your host node_modules into the sandbox for fast startup — the \`npm install\` in the onSandboxReady hook is a safety net for platform-specific binaries. Adjust both if you use a different package manager`,
       `${step++}. Read and customize the prompt files in .sandcastle/ — they shape what the agent does`,
     ];
     if (hasReviewer) {

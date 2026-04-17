@@ -32,7 +32,7 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, resolve } from "node:path";
 import type { MountConfig } from "../MountConfig.js";
-import { SANDBOX_WORKSPACE_DIR } from "../SandboxFactory.js";
+import { SANDBOX_REPO_DIR } from "../SandboxFactory.js";
 
 export interface DockerOptions {
   /** Docker image name (default: derived from repo directory name). */
@@ -75,9 +75,9 @@ export const docker = (options?: DockerOptions): SandboxProvider => {
     ): Promise<BindMountSandboxHandle> => {
       const containerName = `sandcastle-${randomUUID()}`;
 
-      const workspacePath =
+      const worktreePath =
         createOptions.mounts.find(
-          (m) => m.hostPath === createOptions.workspacePath,
+          (m) => m.hostPath === createOptions.worktreePath,
         )?.sandboxPath ?? "/home/agent/workspace";
 
       // Build volume mount strings (internal mounts + user-provided mounts)
@@ -105,7 +105,7 @@ export const docker = (options?: DockerOptions): SandboxProvider => {
           },
           {
             volumeMounts,
-            workdir: workspacePath,
+            workdir: worktreePath,
             user: `${hostUid}:${hostGid}`,
             network: options?.network,
           },
@@ -139,7 +139,7 @@ export const docker = (options?: DockerOptions): SandboxProvider => {
       process.on("SIGTERM", onSignal);
 
       const handle: BindMountSandboxHandle = {
-        workspacePath,
+        worktreePath,
 
         exec: (
           command: string,
@@ -278,7 +278,7 @@ const resolveHostPath = (hostPath: string): string => {
 const resolveSandboxPath = (sandboxPath: string): string =>
   isAbsolute(sandboxPath)
     ? sandboxPath
-    : resolve(SANDBOX_WORKSPACE_DIR, sandboxPath);
+    : resolve(SANDBOX_REPO_DIR, sandboxPath);
 
 const resolveUserMounts = (
   mounts: readonly MountConfig[],

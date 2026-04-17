@@ -16,7 +16,7 @@ export interface MountConfig {
   /**
    * Path inside the sandbox container. Supports:
    * - Absolute paths (`/mnt/data`)
-   * - Relative paths (`data` or `./data`) — resolved from the workspace directory (`/home/agent/workspace`)
+   * - Relative paths (`data` or `./data`) — resolved from the worktree directory (`/home/agent/workspace`)
    *
    * Tilde is NOT expanded.
    */

@@ -82,13 +82,13 @@ export const daytona = (options?: DaytonaOptions): IsolatedSandboxProvider =>
       const client: DaytonaClient = new Daytona(config);
       const sandbox = await client.create(options?.create as any);
 
-      const workspacePath =
+      const worktreePath =
         (await sandbox.getWorkDir()) ??
         (await sandbox.getUserHomeDir()) ??
         "/home/daytona";
 
       return {
-        workspacePath,
+        worktreePath,
 
         exec: async (
           command: string,
@@ -108,7 +108,7 @@ export const daytona = (options?: DaytonaOptions): IsolatedSandboxProvider =>
               const execResponse = await sandbox.process.executeSessionCommand(
                 sessionId,
                 {
-                  command: `cd ${opts?.cwd ?? workspacePath} && ${effectiveCommand}`,
+                  command: `cd ${opts?.cwd ?? worktreePath} && ${effectiveCommand}`,
                   async: true,
                 },
               );
@@ -158,7 +158,7 @@ export const daytona = (options?: DaytonaOptions): IsolatedSandboxProvider =>
 
           const response = await sandbox.process.executeCommand(
             effectiveCommand,
-            opts?.cwd ?? workspacePath,
+            opts?.cwd ?? worktreePath,
           );
           return {
             stdout: response.result,

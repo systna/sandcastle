@@ -18,7 +18,7 @@ describe("noSandbox", () => {
     it("exec runs a command on the host and returns output", async () => {
       const provider = noSandbox();
       const handle = await provider.create({
-        workspacePath: process.cwd(),
+        worktreePath: process.cwd(),
         env: {},
       });
 
@@ -30,7 +30,7 @@ describe("noSandbox", () => {
     it("exec returns non-zero exit code on failure", async () => {
       const provider = noSandbox();
       const handle = await provider.create({
-        workspacePath: process.cwd(),
+        worktreePath: process.cwd(),
         env: {},
       });
 
@@ -41,7 +41,7 @@ describe("noSandbox", () => {
     it("exec supports onLine streaming callback", async () => {
       const provider = noSandbox();
       const handle = await provider.create({
-        workspacePath: process.cwd(),
+        worktreePath: process.cwd(),
         env: {},
       });
 
@@ -58,7 +58,7 @@ describe("noSandbox", () => {
     it("exec respects cwd option", async () => {
       const provider = noSandbox();
       const handle = await provider.create({
-        workspacePath: "/tmp",
+        worktreePath: "/tmp",
         env: {},
       });
 
@@ -69,7 +69,7 @@ describe("noSandbox", () => {
     it("exec ignores sudo option (no-op)", async () => {
       const provider = noSandbox();
       const handle = await provider.create({
-        workspacePath: process.cwd(),
+        worktreePath: process.cwd(),
         env: {},
       });
 
@@ -82,7 +82,7 @@ describe("noSandbox", () => {
     it("exec passes env vars to spawned processes", async () => {
       const provider = noSandbox();
       const handle = await provider.create({
-        workspacePath: process.cwd(),
+        worktreePath: process.cwd(),
         env: { MY_TEST_VAR: "sandcastle_test_value" },
       });
 
@@ -93,7 +93,7 @@ describe("noSandbox", () => {
     it("interactiveExec spawns process and returns exit code", async () => {
       const provider = noSandbox();
       const handle = await provider.create({
-        workspacePath: process.cwd(),
+        worktreePath: process.cwd(),
         env: {},
       });
 
@@ -109,7 +109,7 @@ describe("noSandbox", () => {
     it("close is a no-op and does not throw", async () => {
       const provider = noSandbox();
       const handle = await provider.create({
-        workspacePath: process.cwd(),
+        worktreePath: process.cwd(),
         env: {},
       });
 

@@ -22,8 +22,8 @@ export interface InteractiveExecOptions {
 
 /** Handle to a running bind-mount sandbox. */
 export interface BindMountSandboxHandle {
-  /** Absolute path to the workspace inside the sandbox. */
-  readonly workspacePath: string;
+  /** Absolute path to the worktree inside the sandbox. */
+  readonly worktreePath: string;
   /**
    * Execute a command in the sandbox.
    *
@@ -53,8 +53,8 @@ export interface BindMountSandboxHandle {
 
 /** Options passed to a bind-mount provider's `create` function. */
 export interface BindMountCreateOptions {
-  /** Host-side path to the workspace directory. */
-  readonly workspacePath: string;
+  /** Host-side path to the worktree directory. */
+  readonly worktreePath: string;
   /** Host-side path to the original repo root. */
   readonly hostRepoPath: string;
   /** Volume mounts to apply (host:sandbox pairs). */
@@ -81,8 +81,8 @@ export interface BindMountSandboxProviderConfig {
 
 /** Handle to a running isolated sandbox (extends bind-mount with file transfer). */
 export interface IsolatedSandboxHandle {
-  /** Absolute path to the workspace inside the sandbox. */
-  readonly workspacePath: string;
+  /** Absolute path to the worktree inside the sandbox. */
+  readonly worktreePath: string;
   /**
    * Execute a command in the sandbox.
    *
@@ -162,8 +162,8 @@ export interface IsolatedSandboxProvider {
 
 /** Handle to a no-sandbox session — runs commands directly on the host. */
 export interface NoSandboxHandle {
-  /** Absolute path to the workspace on the host. */
-  readonly workspacePath: string;
+  /** Absolute path to the worktree on the host. */
+  readonly worktreePath: string;
   /**
    * Execute a command on the host.
    *
@@ -196,7 +196,7 @@ export interface NoSandboxProvider {
   readonly env: Record<string, string>;
   /** @internal Create a no-sandbox handle. */
   readonly create: (options: {
-    readonly workspacePath: string;
+    readonly worktreePath: string;
     readonly env: Record<string, string>;
   }) => Promise<NoSandboxHandle>;
 }

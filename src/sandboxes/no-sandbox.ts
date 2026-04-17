@@ -36,11 +36,11 @@ export const noSandbox = (options?: NoSandboxOptions): NoSandboxProvider => ({
   name: "no-sandbox",
   env: options?.env ?? {},
   create: async (createOptions): Promise<NoSandboxHandle> => {
-    const workspacePath = createOptions.workspacePath;
+    const worktreePath = createOptions.worktreePath;
     const processEnv = { ...process.env, ...createOptions.env };
 
     const handle: NoSandboxHandle = {
-      workspacePath,
+      worktreePath,
 
       exec: (
         command: string,
@@ -51,7 +51,7 @@ export const noSandbox = (options?: NoSandboxOptions): NoSandboxProvider => ({
         },
       ): Promise<ExecResult> => {
         // sudo is a no-op for no-sandbox — the user is already on the host
-        const cwd = opts?.cwd ?? workspacePath;
+        const cwd = opts?.cwd ?? worktreePath;
 
         return new Promise((resolve, reject) => {
           const proc = spawn("sh", ["-c", command], {
@@ -100,7 +100,7 @@ export const noSandbox = (options?: NoSandboxOptions): NoSandboxProvider => ({
         return new Promise((resolve, reject) => {
           const [cmd, ...rest] = args;
           const proc = spawn(cmd!, rest, {
-            cwd: opts.cwd ?? workspacePath,
+            cwd: opts.cwd ?? worktreePath,
             env: processEnv,
             stdio: [opts.stdin, opts.stdout, opts.stderr] as StdioOptions,
           });

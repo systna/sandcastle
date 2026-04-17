@@ -21,7 +21,7 @@ import { createBindMountSandboxProvider } from "./SandboxProvider.js";
 const testSandbox = createBindMountSandboxProvider({
   name: "test",
   create: async () => ({
-    workspacePath: "/home/agent/workspace",
+    worktreePath: "/home/agent/workspace",
     exec: async () => ({ stdout: "", stderr: "", exitCode: 0 }),
     close: async () => {},
   }),
@@ -240,18 +240,18 @@ describe("RunOptions", () => {
   });
 });
 
-describe("copyToWorkspace with head branch strategy", () => {
-  it("throws a runtime error when copyToWorkspace is provided with head strategy", async () => {
+describe("copyToWorktree with head branch strategy", () => {
+  it("throws a runtime error when copyToWorktree is provided with head strategy", async () => {
     await expect(
       run({
         agent: claudeCode("claude-opus-4-6"),
         sandbox: testSandbox,
         prompt: "test",
         branchStrategy: { type: "head" },
-        copyToWorkspace: [".env"],
+        copyToWorktree: [".env"],
       }),
     ).rejects.toThrow(
-      "copyToWorkspace is not supported with head branch strategy",
+      "copyToWorktree is not supported with head branch strategy",
     );
   });
 });
@@ -261,7 +261,7 @@ describe("branchStrategy on RunOptions", () => {
     const isolatedSandbox = sandcastle.createIsolatedSandboxProvider({
       name: "test-isolated",
       create: async () => ({
-        workspacePath: "/workspace",
+        worktreePath: "/workspace",
         exec: async () => ({ stdout: "", stderr: "", exitCode: 0 }),
         copyIn: async () => {},
         copyFileOut: async () => {},

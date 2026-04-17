@@ -29,12 +29,12 @@ describe("testIsolated()", () => {
     }
   });
 
-  it("exec runs in workspacePath by default", async () => {
+  it("exec runs in worktreePath by default", async () => {
     const provider = testIsolated();
     const handle = await provider.create({ env: {} });
     try {
       const result = await handle.exec("pwd");
-      expect(result.stdout.trim()).toBe(handle.workspacePath);
+      expect(result.stdout.trim()).toBe(handle.worktreePath);
     } finally {
       await handle.close();
     }
@@ -72,7 +72,7 @@ describe("testIsolated()", () => {
       writeFileSync(hostFile, "hello from host");
 
       // Copy it into the sandbox
-      const sandboxFile = join(handle.workspacePath, "input.txt");
+      const sandboxFile = join(handle.worktreePath, "input.txt");
       await handle.copyIn(hostFile, sandboxFile);
 
       // Verify it exists inside the sandbox
@@ -93,7 +93,7 @@ describe("testIsolated()", () => {
       // Copy it out to the host
       const hostDir = mkdtempSync(join(tmpdir(), "test-host-"));
       const hostFile = join(hostDir, "output.txt");
-      const sandboxFile = join(handle.workspacePath, "output.txt");
+      const sandboxFile = join(handle.worktreePath, "output.txt");
       await handle.copyFileOut(sandboxFile, hostFile);
 
       // Verify it exists on the host
@@ -116,7 +116,7 @@ describe("testIsolated()", () => {
       writeFileSync(join(srcDir, "sub", "b.txt"), "file-b");
 
       // Copy directory into sandbox
-      const sandboxDir = join(handle.workspacePath, "mydir");
+      const sandboxDir = join(handle.worktreePath, "mydir");
       await handle.copyIn(srcDir, sandboxDir);
 
       // Verify both files exist
@@ -132,15 +132,15 @@ describe("testIsolated()", () => {
   it("close cleans up the temp directory", async () => {
     const provider = testIsolated();
     const handle = await provider.create({ env: {} });
-    const workspacePath = handle.workspacePath;
+    const worktreePath = handle.worktreePath;
 
-    // Workspace should exist before close
-    expect(existsSync(workspacePath)).toBe(true);
+    // Worktree should exist before close
+    expect(existsSync(worktreePath)).toBe(true);
 
     await handle.close();
 
-    // Workspace should be gone after close
-    expect(existsSync(workspacePath)).toBe(false);
+    // Worktree should be gone after close
+    expect(existsSync(worktreePath)).toBe(false);
   });
 
   it("exec streams lines to onLine callback", async () => {

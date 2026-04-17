@@ -12,16 +12,16 @@ export type {
   SandboxInteractiveResult,
   CloseResult,
 } from "./createSandbox.js";
-export { createWorkspace } from "./createWorkspace.js";
+export { createWorktree } from "./createWorktree.js";
 export type {
-  CreateWorkspaceOptions,
-  Workspace,
-  WorkspaceBranchStrategy,
-  WorkspaceInteractiveOptions,
-  WorkspaceRunOptions,
-  WorkspaceRunResult,
-  WorkspaceCreateSandboxOptions,
-} from "./createWorkspace.js";
+  CreateWorktreeOptions,
+  Worktree,
+  WorktreeBranchStrategy,
+  WorktreeInteractiveOptions,
+  WorktreeRunOptions,
+  WorktreeRunResult,
+  WorktreeCreateSandboxOptions,
+} from "./createWorktree.js";
 export type { PromptArgs } from "./PromptArgumentSubstitution.js";
 export type { MountConfig } from "./MountConfig.js";
 export { claudeCode, codex, opencode, pi } from "./AgentProvider.js";

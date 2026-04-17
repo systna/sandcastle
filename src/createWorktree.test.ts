@@ -5,12 +5,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
-import { createWorkspace } from "./createWorkspace.js";
+import { createWorktree } from "./createWorktree.js";
 import type {
-  CreateWorkspaceOptions,
-  WorkspaceRunOptions,
-  WorkspaceCreateSandboxOptions,
-} from "./createWorkspace.js";
+  CreateWorktreeOptions,
+  WorktreeRunOptions,
+  WorktreeCreateSandboxOptions,
+} from "./createWorktree.js";
 import { claudeCode } from "./AgentProvider.js";
 import {
   createBindMountSandboxProvider,
@@ -40,41 +40,41 @@ const commitFile = async (
   await execAsync(`git commit -m "${message}"`, { cwd: dir });
 };
 
-describe("createWorkspace", () => {
-  it("creates a workspace with 'branch' strategy", async () => {
+describe("createWorktree", () => {
+  it("creates a worktree with 'branch' strategy", async () => {
     const hostDir = await mkdtemp(join(tmpdir(), "ws-test-"));
     await initRepo(hostDir);
     await commitFile(hostDir, "init.txt", "init", "initial commit");
 
-    const ws = await createWorkspace({
+    const ws = await createWorktree({
       branchStrategy: { type: "branch", branch: "test-branch" },
       _test: { hostRepoDir: hostDir },
     });
 
     try {
-      expect(ws.workspacePath).toContain(".sandcastle/worktrees");
+      expect(ws.worktreePath).toContain(".sandcastle/worktrees");
       expect(ws.branch).toBe("test-branch");
-      expect(existsSync(ws.workspacePath)).toBe(true);
+      expect(existsSync(ws.worktreePath)).toBe(true);
     } finally {
       await ws.close();
       await rm(hostDir, { recursive: true, force: true });
     }
   });
 
-  it("creates a workspace with 'merge-to-head' strategy", async () => {
+  it("creates a worktree with 'merge-to-head' strategy", async () => {
     const hostDir = await mkdtemp(join(tmpdir(), "ws-test-"));
     await initRepo(hostDir);
     await commitFile(hostDir, "init.txt", "init", "initial commit");
 
-    const ws = await createWorkspace({
+    const ws = await createWorktree({
       branchStrategy: { type: "merge-to-head" },
       _test: { hostRepoDir: hostDir },
     });
 
     try {
-      expect(ws.workspacePath).toContain(".sandcastle/worktrees");
+      expect(ws.worktreePath).toContain(".sandcastle/worktrees");
       expect(ws.branch).toMatch(/^sandcastle\//);
-      expect(existsSync(ws.workspacePath)).toBe(true);
+      expect(existsSync(ws.worktreePath)).toBe(true);
     } finally {
       await ws.close();
       await rm(hostDir, { recursive: true, force: true });
@@ -82,13 +82,13 @@ describe("createWorkspace", () => {
   });
 
   it("rejects 'head' branch strategy at the type level", () => {
-    const _options: CreateWorkspaceOptions = {
+    const _options: CreateWorktreeOptions = {
       // @ts-expect-error - head strategy should be a compile-time error
       branchStrategy: { type: "head" },
     };
   });
 
-  it("copies files into the workspace with copyToWorkspace", async () => {
+  it("copies files into the worktree with copyToWorktree", async () => {
     const hostDir = await mkdtemp(join(tmpdir(), "ws-test-"));
     await initRepo(hostDir);
     await commitFile(hostDir, "init.txt", "init", "initial commit");
@@ -96,14 +96,14 @@ describe("createWorkspace", () => {
     // Create a file to copy
     await writeFile(join(hostDir, "node_modules.txt"), "deps");
 
-    const ws = await createWorkspace({
+    const ws = await createWorktree({
       branchStrategy: { type: "branch", branch: "copy-test" },
-      copyToWorkspace: ["node_modules.txt"],
+      copyToWorktree: ["node_modules.txt"],
       _test: { hostRepoDir: hostDir },
     });
 
     try {
-      expect(existsSync(join(ws.workspacePath, "node_modules.txt"))).toBe(true);
+      expect(existsSync(join(ws.worktreePath, "node_modules.txt"))).toBe(true);
     } finally {
       await ws.close();
       await rm(hostDir, { recursive: true, force: true });
@@ -115,15 +115,15 @@ describe("createWorkspace", () => {
     await initRepo(hostDir);
     await commitFile(hostDir, "init.txt", "init", "initial commit");
 
-    const ws = await createWorkspace({
+    const ws = await createWorktree({
       branchStrategy: { type: "branch", branch: "clean-close" },
       _test: { hostRepoDir: hostDir },
     });
 
-    const worktreePath = ws.workspacePath;
+    const worktreePath = ws.worktreePath;
     const result = await ws.close();
 
-    expect(result.preservedWorkspacePath).toBeUndefined();
+    expect(result.preservedWorktreePath).toBeUndefined();
     expect(existsSync(worktreePath)).toBe(false);
     await rm(hostDir, { recursive: true, force: true });
   });
@@ -133,21 +133,21 @@ describe("createWorkspace", () => {
     await initRepo(hostDir);
     await commitFile(hostDir, "init.txt", "init", "initial commit");
 
-    const ws = await createWorkspace({
+    const ws = await createWorktree({
       branchStrategy: { type: "branch", branch: "dirty-close" },
       _test: { hostRepoDir: hostDir },
     });
 
-    // Make workspace dirty
-    await writeFile(join(ws.workspacePath, "dirty.txt"), "uncommitted");
+    // Make worktree dirty
+    await writeFile(join(ws.worktreePath, "dirty.txt"), "uncommitted");
 
     const result = await ws.close();
 
-    expect(result.preservedWorkspacePath).toBe(ws.workspacePath);
-    expect(existsSync(ws.workspacePath)).toBe(true);
+    expect(result.preservedWorktreePath).toBe(ws.worktreePath);
+    expect(existsSync(ws.worktreePath)).toBe(true);
 
     // Clean up manually
-    await rm(ws.workspacePath, { recursive: true, force: true });
+    await rm(ws.worktreePath, { recursive: true, force: true });
     await execAsync("git worktree prune", { cwd: hostDir });
     await rm(hostDir, { recursive: true, force: true });
   });
@@ -159,11 +159,11 @@ describe("createWorkspace", () => {
 
     let worktreePath: string;
     {
-      await using ws = await createWorkspace({
+      await using ws = await createWorktree({
         branchStrategy: { type: "branch", branch: "dispose-test" },
         _test: { hostRepoDir: hostDir },
       });
-      worktreePath = ws.workspacePath;
+      worktreePath = ws.worktreePath;
       expect(existsSync(worktreePath)).toBe(true);
     }
     expect(existsSync(worktreePath!)).toBe(false);
@@ -175,7 +175,7 @@ describe("createWorkspace", () => {
     await initRepo(hostDir);
     await commitFile(hostDir, "init.txt", "init", "initial commit");
 
-    const ws = await createWorkspace({
+    const ws = await createWorktree({
       branchStrategy: { type: "branch", branch: "idempotent-close" },
       _test: { hostRepoDir: hostDir },
     });
@@ -183,13 +183,13 @@ describe("createWorkspace", () => {
     const result1 = await ws.close();
     const result2 = await ws.close();
 
-    expect(result1.preservedWorkspacePath).toBeUndefined();
-    expect(result2.preservedWorkspacePath).toBeUndefined();
+    expect(result1.preservedWorktreePath).toBeUndefined();
+    expect(result2.preservedWorktreePath).toBeUndefined();
     await rm(hostDir, { recursive: true, force: true });
   });
 });
 
-describe("workspace.interactive()", () => {
+describe("worktree.interactive()", () => {
   /**
    * Create a test bind-mount provider with a fake interactiveExec.
    */
@@ -203,10 +203,10 @@ describe("workspace.interactive()", () => {
       name: "test-interactive",
       create: async (options) => {
         const handle: BindMountSandboxHandle = {
-          workspacePath: options.workspacePath,
+          worktreePath: options.worktreePath,
           exec: async (command) => {
             const result = execSync(command, {
-              cwd: options.workspacePath,
+              cwd: options.worktreePath,
               encoding: "utf-8",
               stdio: ["pipe", "pipe", "pipe"],
             });
@@ -228,7 +228,7 @@ describe("workspace.interactive()", () => {
       return { exitCode: 0 };
     });
 
-    const ws = await createWorkspace({
+    const ws = await createWorktree({
       branchStrategy: { type: "branch", branch: "interactive-test" },
       _test: { hostRepoDir: hostDir },
     });
@@ -261,7 +261,7 @@ describe("workspace.interactive()", () => {
       return { exitCode: 0 };
     });
 
-    const ws = await createWorkspace({
+    const ws = await createWorktree({
       branchStrategy: { type: "branch", branch: "sandbox-test" },
       _test: { hostRepoDir: hostDir },
     });
@@ -281,7 +281,7 @@ describe("workspace.interactive()", () => {
     }
   });
 
-  it("workspace persists after interactive session completes", async () => {
+  it("worktree persists after interactive session completes", async () => {
     const hostDir = await mkdtemp(join(tmpdir(), "ws-interactive-"));
     await initRepo(hostDir);
     await commitFile(hostDir, "init.txt", "init", "initial commit");
@@ -295,7 +295,7 @@ describe("workspace.interactive()", () => {
       return { exitCode: 0 };
     });
 
-    const ws = await createWorkspace({
+    const ws = await createWorktree({
       branchStrategy: { type: "branch", branch: "persist-test" },
       _test: { hostRepoDir: hostDir },
     });
@@ -307,11 +307,11 @@ describe("workspace.interactive()", () => {
         prompt: "add a file",
       });
 
-      // Workspace should still exist after interactive session
-      expect(existsSync(ws.workspacePath)).toBe(true);
+      // Worktree should still exist after interactive session
+      expect(existsSync(ws.worktreePath)).toBe(true);
       // The commit should be in the worktree
       const log = execSync("git log --oneline -1", {
-        cwd: ws.workspacePath,
+        cwd: ws.worktreePath,
         encoding: "utf-8",
       });
       expect(log).toContain("agent commit");
@@ -334,7 +334,7 @@ describe("workspace.interactive()", () => {
       return { exitCode: 42 };
     });
 
-    const ws = await createWorkspace({
+    const ws = await createWorktree({
       branchStrategy: { type: "branch", branch: "result-test" },
       _test: { hostRepoDir: hostDir },
     });
@@ -370,7 +370,7 @@ const toStreamJson = (output: string): string => {
   return lines.join("\n");
 };
 
-describe("workspace.run()", () => {
+describe("worktree.run()", () => {
   /**
    * Create a test bind-mount provider that intercepts agent commands
    * and runs a mock behavior, while passing other commands through.
@@ -383,7 +383,7 @@ describe("workspace.run()", () => {
       name: "test-run",
       create: async (options) => {
         const handle: BindMountSandboxHandle = {
-          workspacePath: options.workspacePath,
+          worktreePath: options.worktreePath,
           exec: async (
             command: string,
             execOptions?: {
@@ -392,7 +392,7 @@ describe("workspace.run()", () => {
               sudo?: boolean;
             },
           ): Promise<ExecResult> => {
-            const cwd = execOptions?.cwd ?? options.workspacePath;
+            const cwd = execOptions?.cwd ?? options.worktreePath;
             // Intercept agent commands
             if (command.startsWith("claude ")) {
               const output = await mockAgentBehavior(cwd);
@@ -418,14 +418,14 @@ describe("workspace.run()", () => {
       },
     });
 
-  it("runs agent and returns WorkspaceRunResult", async () => {
+  it("runs agent and returns WorktreeRunResult", async () => {
     const hostDir = await mkdtemp(join(tmpdir(), "ws-run-"));
     await initRepo(hostDir);
     await commitFile(hostDir, "init.txt", "init", "initial commit");
 
     const sandbox = makeRunTestProvider();
 
-    const ws = await createWorkspace({
+    const ws = await createWorktree({
       branchStrategy: { type: "branch", branch: "run-test" },
       _test: { hostRepoDir: hostDir },
     });
@@ -448,7 +448,7 @@ describe("workspace.run()", () => {
     }
   });
 
-  it("workspace persists after run completes", async () => {
+  it("worktree persists after run completes", async () => {
     const hostDir = await mkdtemp(join(tmpdir(), "ws-run-"));
     await initRepo(hostDir);
     await commitFile(hostDir, "init.txt", "init", "initial commit");
@@ -460,7 +460,7 @@ describe("workspace.run()", () => {
       return "done";
     });
 
-    const ws = await createWorkspace({
+    const ws = await createWorktree({
       branchStrategy: { type: "branch", branch: "persist-run-test" },
       _test: { hostRepoDir: hostDir },
     });
@@ -473,11 +473,11 @@ describe("workspace.run()", () => {
         maxIterations: 1,
       });
 
-      // Workspace should still exist after run
-      expect(existsSync(ws.workspacePath)).toBe(true);
+      // Worktree should still exist after run
+      expect(existsSync(ws.worktreePath)).toBe(true);
       // The commit should be in the worktree
       const log = execSync("git log --oneline -1", {
-        cwd: ws.workspacePath,
+        cwd: ws.worktreePath,
         encoding: "utf-8",
       });
       expect(log).toContain("agent commit");
@@ -499,7 +499,7 @@ describe("workspace.run()", () => {
       return "done";
     });
 
-    const ws = await createWorkspace({
+    const ws = await createWorktree({
       branchStrategy: { type: "branch", branch: "commits-run-test" },
       _test: { hostRepoDir: hostDir },
     });
@@ -522,12 +522,12 @@ describe("workspace.run()", () => {
   });
 
   it("sandbox is required (type error if omitted)", () => {
-    // This test validates at the type level — sandbox is required in WorkspaceRunOptions
+    // This test validates at the type level — sandbox is required in WorktreeRunOptions
     const _options = {
       agent: claudeCode("claude-opus-4-6"),
       prompt: "test",
       // @ts-expect-error — sandbox is required
-    } satisfies WorkspaceRunOptions;
+    } satisfies WorktreeRunOptions;
   });
 });
 
@@ -535,19 +535,19 @@ describe("workspace.run()", () => {
 const testSandbox: SandboxProvider = createBindMountSandboxProvider({
   name: "test",
   create: async (options) => ({
-    workspacePath: options.workspacePath,
+    worktreePath: options.worktreePath,
     exec: async () => ({ stdout: "", stderr: "", exitCode: 0 }),
     close: async () => {},
   }),
 });
 
-describe("workspace.createSandbox()", () => {
-  it("creates a sandbox with branch and workspacePath from the workspace", async () => {
+describe("worktree.createSandbox()", () => {
+  it("creates a sandbox with branch and worktreePath from the worktree", async () => {
     const hostDir = await mkdtemp(join(tmpdir(), "ws-sandbox-"));
     await initRepo(hostDir);
     await commitFile(hostDir, "init.txt", "init", "initial commit");
 
-    const ws = await createWorkspace({
+    const ws = await createWorktree({
       branchStrategy: { type: "branch", branch: "ws-sandbox-test" },
       _test: { hostRepoDir: hostDir },
     });
@@ -562,7 +562,7 @@ describe("workspace.createSandbox()", () => {
 
       try {
         expect(sandbox.branch).toBe("ws-sandbox-test");
-        expect(sandbox.workspacePath).toBe(ws.workspacePath);
+        expect(sandbox.worktreePath).toBe(ws.worktreePath);
       } finally {
         await sandbox.close();
       }
@@ -577,7 +577,7 @@ describe("workspace.createSandbox()", () => {
     await initRepo(hostDir);
     await commitFile(hostDir, "init.txt", "init", "initial commit");
 
-    const ws = await createWorkspace({
+    const ws = await createWorktree({
       branchStrategy: { type: "branch", branch: "split-ownership" },
       _test: { hostRepoDir: hostDir },
     });
@@ -592,10 +592,10 @@ describe("workspace.createSandbox()", () => {
 
       const closeResult = await sandbox.close();
 
-      // Sandbox close should NOT report preserved workspace (it doesn't own it)
-      expect(closeResult.preservedWorkspacePath).toBeUndefined();
-      // Worktree should still exist — workspace owns it
-      expect(existsSync(ws.workspacePath)).toBe(true);
+      // Sandbox close should NOT report preserved worktree (it doesn't own it)
+      expect(closeResult.preservedWorktreePath).toBeUndefined();
+      // Worktree should still exist — worktree owns it
+      expect(existsSync(ws.worktreePath)).toBe(true);
     } finally {
       await ws.close();
       await rm(hostDir, { recursive: true, force: true });
@@ -607,12 +607,12 @@ describe("workspace.createSandbox()", () => {
     await initRepo(hostDir);
     await commitFile(hostDir, "init.txt", "init", "initial commit");
 
-    const ws = await createWorkspace({
+    const ws = await createWorktree({
       branchStrategy: { type: "branch", branch: "ws-close-after-sandbox" },
       _test: { hostRepoDir: hostDir },
     });
 
-    const worktreePath = ws.workspacePath;
+    const worktreePath = ws.worktreePath;
 
     const sandbox = await ws.createSandbox({
       sandbox: testSandbox,
@@ -625,18 +625,18 @@ describe("workspace.createSandbox()", () => {
     expect(existsSync(worktreePath)).toBe(true);
 
     const wsCloseResult = await ws.close();
-    expect(wsCloseResult.preservedWorkspacePath).toBeUndefined();
+    expect(wsCloseResult.preservedWorktreePath).toBeUndefined();
     expect(existsSync(worktreePath)).toBe(false);
 
     await rm(hostDir, { recursive: true, force: true });
   });
 
-  it("multiple sandboxes can be created sequentially from the same workspace", async () => {
+  it("multiple sandboxes can be created sequentially from the same worktree", async () => {
     const hostDir = await mkdtemp(join(tmpdir(), "ws-sandbox-"));
     await initRepo(hostDir);
     await commitFile(hostDir, "init.txt", "init", "initial commit");
 
-    const ws = await createWorkspace({
+    const ws = await createWorktree({
       branchStrategy: { type: "branch", branch: "sequential-sandbox" },
       _test: { hostRepoDir: hostDir },
     });
@@ -660,10 +660,10 @@ describe("workspace.createSandbox()", () => {
         },
       });
       expect(sandbox2.branch).toBe("sequential-sandbox");
-      expect(sandbox2.workspacePath).toBe(ws.workspacePath);
+      expect(sandbox2.worktreePath).toBe(ws.worktreePath);
       await sandbox2.close();
 
-      expect(existsSync(ws.workspacePath)).toBe(true);
+      expect(existsSync(ws.worktreePath)).toBe(true);
     } finally {
       await ws.close();
       await rm(hostDir, { recursive: true, force: true });
@@ -671,7 +671,7 @@ describe("workspace.createSandbox()", () => {
   });
 
   it("does not accept branch options", () => {
-    const _options: WorkspaceCreateSandboxOptions = {
+    const _options: WorktreeCreateSandboxOptions = {
       sandbox: testSandbox,
       // @ts-expect-error - branch should not be accepted
       branch: "should-not-work",

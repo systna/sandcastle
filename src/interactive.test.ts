@@ -119,10 +119,10 @@ describe("interactive()", () => {
       name: "test-interactive",
       create: async (options) => {
         const handle: BindMountSandboxHandle = {
-          workspacePath: options.workspacePath,
+          worktreePath: options.worktreePath,
           exec: async (command) => {
             const result = execSync(command, {
-              cwd: options.workspacePath,
+              cwd: options.worktreePath,
               encoding: "utf-8",
               stdio: ["pipe", "pipe", "pipe"],
             });
@@ -212,10 +212,10 @@ describe("interactive()", () => {
     const provider = createBindMountSandboxProvider({
       name: "no-interactive",
       create: async (options) => ({
-        workspacePath: options.workspacePath,
+        worktreePath: options.worktreePath,
         exec: async (command) => {
           const result = execSync(command, {
-            cwd: options.workspacePath,
+            cwd: options.worktreePath,
             encoding: "utf-8",
             stdio: ["pipe", "pipe", "pipe"],
           });
@@ -241,7 +241,7 @@ describe("interactive()", () => {
     const isolatedProvider = createIsolatedSandboxProvider({
       name: "test-isolated",
       create: async () => ({
-        workspacePath: "/workspace",
+        worktreePath: "/workspace",
         exec: async () => ({ stdout: "", stderr: "", exitCode: 0 }),
         copyIn: async () => {},
         copyFileOut: async () => {},
@@ -572,9 +572,9 @@ describe("interactive()", () => {
     expect(executionOrder).toEqual(["interactive-after-hook"]);
   });
 
-  // --- copyToWorkspace tests ---
+  // --- copyToWorktree tests ---
 
-  it("throws when copyToWorkspace used with head strategy", async () => {
+  it("throws when copyToWorktree used with head strategy", async () => {
     const provider = makeTestProvider(async () => ({ exitCode: 0 }));
 
     await expect(
@@ -583,12 +583,12 @@ describe("interactive()", () => {
         sandbox: provider,
         prompt: "test",
         branchStrategy: { type: "head" },
-        copyToWorkspace: ["node_modules"],
+        copyToWorktree: ["node_modules"],
       }),
-    ).rejects.toThrow("copyToWorkspace is not supported with head");
+    ).rejects.toThrow("copyToWorktree is not supported with head");
   });
 
-  it("copies files to worktree with copyToWorkspace", async () => {
+  it("copies files to worktree with copyToWorktree", async () => {
     // Create a file to copy
     const nodeModulesDir = join(hostDir, "node_modules");
     execSync(`mkdir -p ${nodeModulesDir}`);
@@ -607,7 +607,7 @@ describe("interactive()", () => {
       sandbox: provider,
       prompt: "test",
       branchStrategy: { type: "merge-to-head" },
-      copyToWorkspace: ["node_modules"],
+      copyToWorktree: ["node_modules"],
     });
 
     expect(copiedFileExists).toBe(true);

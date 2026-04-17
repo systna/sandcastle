@@ -16,7 +16,7 @@ import {
   getSandboxProvider,
 } from "./InitService.js";
 import type { AgentEntry, ScaffoldOptions } from "./InitService.js";
-import { SANDBOX_WORKSPACE_DIR } from "./SandboxFactory.js";
+import { SANDBOX_REPO_DIR } from "./SandboxFactory.js";
 import { SKELETON_PROMPT } from "./templates.js";
 
 const makeDir = () => mkdtemp(join(tmpdir(), "init-service-"));
@@ -235,7 +235,7 @@ describe("InitService scaffold", () => {
     expect(gitignore).not.toContain("patches/");
   });
 
-  it("Dockerfile template contains workspace mount comment", async () => {
+  it("Dockerfile template contains worktree mount comment", async () => {
     const dir = await makeDir();
     await runScaffold(dir);
 
@@ -243,7 +243,7 @@ describe("InitService scaffold", () => {
       join(dir, ".sandcastle", "Dockerfile"),
       "utf-8",
     );
-    expect(dockerfile).toContain(SANDBOX_WORKSPACE_DIR);
+    expect(dockerfile).toContain(SANDBOX_REPO_DIR);
   });
 
   it("claude-code Dockerfile template does not install pnpm or enable corepack", async () => {
@@ -559,10 +559,10 @@ describe("InitService scaffold", () => {
       expect(joined).toContain("onSandboxReady");
     });
 
-    it("non-blank template mentions copyToWorkspace and node_modules", () => {
+    it("non-blank template mentions copyToWorktree and node_modules", () => {
       const lines = getNextStepsLines("simple-loop", "main.mts");
       const joined = lines.join("\n");
-      expect(joined).toContain("copyToWorkspace");
+      expect(joined).toContain("copyToWorktree");
       expect(joined).toContain("node_modules");
     });
 

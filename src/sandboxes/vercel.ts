@@ -18,8 +18,8 @@ import {
   type IsolatedSandboxProvider,
 } from "../SandboxProvider.js";
 
-/** Workspace path inside the Vercel sandbox. */
-const VERCEL_WORKSPACE_PATH = "/vercel/sandbox/workspace";
+/** Worktree path inside the Vercel sandbox. */
+const VERCEL_REPO_PATH = "/vercel/sandbox/workspace";
 
 /**
  * Options for creating a Vercel sandbox provider.
@@ -156,11 +156,11 @@ export const vercel = (options?: VercelOptions): IsolatedSandboxProvider =>
         createParams as Parameters<typeof Sandbox.create>[0],
       );
 
-      // Ensure workspace directory exists
-      await sandbox.mkDir(VERCEL_WORKSPACE_PATH);
+      // Ensure worktree directory exists
+      await sandbox.mkDir(VERCEL_REPO_PATH);
 
       const handle: IsolatedSandboxHandle = {
-        workspacePath: VERCEL_WORKSPACE_PATH,
+        worktreePath: VERCEL_REPO_PATH,
 
         exec: async (
           command: string,
@@ -207,7 +207,7 @@ export const vercel = (options?: VercelOptions): IsolatedSandboxProvider =>
             const result = await sandbox.runCommand({
               cmd: "sh",
               args: ["-c", command],
-              cwd: opts?.cwd ?? VERCEL_WORKSPACE_PATH,
+              cwd: opts?.cwd ?? VERCEL_REPO_PATH,
               stdout: stdoutWritable,
               stderr: stderrWritable,
               ...(opts?.sudo ? { sudo: true } : {}),
@@ -223,7 +223,7 @@ export const vercel = (options?: VercelOptions): IsolatedSandboxProvider =>
           const result = await sandbox.runCommand({
             cmd: "sh",
             args: ["-c", command],
-            cwd: opts?.cwd ?? VERCEL_WORKSPACE_PATH,
+            cwd: opts?.cwd ?? VERCEL_REPO_PATH,
             ...(opts?.sudo ? { sudo: true } : {}),
           });
 
