@@ -20,6 +20,8 @@ import type { BindMountSandboxHandle } from "./SandboxProvider.js";
 export interface SessionStore {
   /** The working directory this store is associated with. */
   readonly cwd: string;
+  /** Absolute path where a session's JSONL would be stored. */
+  sessionFilePath(id: string): string;
   /** Read a session's JSONL content by ID. Throws if not found. */
   readSession(id: string): Promise<string>;
   /** Write a session's JSONL content by ID. Creates or overwrites. */
@@ -63,6 +65,7 @@ export const hostSessionStore = (
 
   return {
     cwd,
+    sessionFilePath: (id: string): string => join(sessionsDir, `${id}.jsonl`),
     readSession: async (id: string): Promise<string> => {
       return await readFile(join(sessionsDir, `${id}.jsonl`), "utf-8");
     },
@@ -95,6 +98,7 @@ export const sandboxSessionStore = (
 
   return {
     cwd,
+    sessionFilePath: (id: string): string => join(sessionsDir, `${id}.jsonl`),
     readSession: async (id: string): Promise<string> => {
       const sandboxPath = join(sessionsDir, `${id}.jsonl`);
       const tmpPath = join(

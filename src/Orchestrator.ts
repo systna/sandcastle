@@ -14,7 +14,6 @@ import { withSandboxLifecycle, type SandboxHooks } from "./SandboxLifecycle.js";
 import type { AgentProvider } from "./AgentProvider.js";
 import { TextDeltaBuffer } from "./TextDeltaBuffer.js";
 import {
-  encodeProjectPath,
   hostSessionStore,
   sandboxSessionStore,
   transferSession,
@@ -276,26 +275,15 @@ export const orchestrate = (
                     hostRepoDir,
                     options._hostProjectsDir,
                   );
-                  sessionFilePath = yield* Effect.tryPromise({
-                    try: async () => {
-                      await transferSession(sbStore, hStore, sessionId);
-                      const encoded = encodeProjectPath(hostRepoDir);
-                      const projectsDir =
-                        options._hostProjectsDir ??
-                        join(process.env.HOME ?? "~", ".claude", "projects");
-                      return join(
-                        projectsDir,
-                        encoded,
-                        "sessions",
-                        `${sessionId}.jsonl`,
-                      );
-                    },
+                  yield* Effect.tryPromise({
+                    try: () => transferSession(sbStore, hStore, sessionId),
                     catch: (e) =>
                       new SessionCaptureError({
                         message: `Session capture failed: ${e instanceof Error ? e.message : String(e)}`,
                         sessionId,
                       }),
                   });
+                  sessionFilePath = hStore.sessionFilePath(sessionId);
                 }
 
                 // Check completion signal

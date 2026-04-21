@@ -24,6 +24,7 @@ const createMemoryStore = (
   return {
     cwd,
     data,
+    sessionFilePath: (id: string): string => `${cwd}/sessions/${id}.jsonl`,
     readSession: async (id: string): Promise<string> => {
       const content = data.get(id);
       if (content === undefined)

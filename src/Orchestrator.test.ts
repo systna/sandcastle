@@ -2760,12 +2760,8 @@ describe("Session capture integration", () => {
     hostRepoDir: string,
     mockAgentBehavior: (sandboxRepoDir: string) => Promise<string>,
     sessionId: string,
-  ): {
-    factoryLayer: Layer.Layer<SandboxFactory>;
-    sandboxRepoDir: string;
-  } => {
+  ): { factoryLayer: Layer.Layer<SandboxFactory> } => {
     const sandboxBaseDir = join(tmpdir(), `orch-session-${randomUUID()}`);
-    const sandboxRepoDir = sandboxBaseDir;
     let branchCounter = 0;
 
     const factoryLayer = Layer.succeed(SandboxFactory, {
@@ -2861,7 +2857,7 @@ describe("Session capture integration", () => {
         ),
     });
 
-    return { factoryLayer, sandboxRepoDir };
+    return { factoryLayer };
   };
 
   it("captures session JSONL to host and populates sessionFilePath", async () => {
@@ -2874,13 +2870,7 @@ describe("Session capture integration", () => {
     await initRepo(hostDir);
     await commitFile(hostDir, "hello.txt", "hello", "initial commit");
 
-    // Create session JSONL that the "sandbox" agent would write
-    const sessionJsonl = [
-      JSON.stringify({ type: "system", cwd: hostDir }),
-      JSON.stringify({ type: "message", cwd: hostDir, text: "hello" }),
-    ].join("\n");
-
-    const { factoryLayer, sandboxRepoDir } = makeSessionCaptureFactory(
+    const { factoryLayer } = makeSessionCaptureFactory(
       hostDir,
       async (repoDir) => {
         // Write a session JSONL file into the sandbox's session store location
@@ -2989,36 +2979,6 @@ describe("Session capture integration", () => {
 
     expect(result.iterations.length).toBe(1);
     expect(result.iterations[0]!.sessionId).toBeUndefined();
-    expect(result.iterations[0]!.sessionFilePath).toBeUndefined();
-  });
-
-  it("captures session for claudeCode with captureSessions disabled", async () => {
-    const hostDir = await mkdtemp(
-      join(tmpdir(), "orch-capture-disabled-host-"),
-    );
-
-    await initRepo(hostDir);
-    await commitFile(hostDir, "hello.txt", "hello", "initial commit");
-
-    const { factoryLayer } = makeTestSandboxFactory(hostDir, (dir) =>
-      makeMockAgentLayer(dir, async () => {
-        return "Done.";
-      }),
-    );
-
-    // claudeCode with captureSessions explicitly disabled
-    const provider = claudeCode("test-model", { captureSessions: false });
-
-    const result = await Effect.runPromise(
-      orchestrate({
-        provider,
-        hostRepoDir: hostDir,
-        iterations: 1,
-        prompt: "do some work",
-      }).pipe(Effect.provide(Layer.merge(factoryLayer, testDisplayLayer))),
-    );
-
-    expect(result.iterations.length).toBe(1);
     expect(result.iterations[0]!.sessionFilePath).toBeUndefined();
   });
 });
