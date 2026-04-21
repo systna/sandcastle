@@ -2931,7 +2931,6 @@ describe("Session capture integration", () => {
       mockSessionId,
     );
 
-    const sandboxProjectsDir = join("/home/agent", ".claude", "projects");
     const result = await Effect.runPromise(
       orchestrate({
         provider: testProvider,
@@ -3084,7 +3083,6 @@ describe("Session capture integration", () => {
       mockSessionId,
     );
 
-    const sandboxProjectsDir = join("/home/agent", ".claude", "projects");
     const result = await Effect.runPromise(
       orchestrate({
         provider: testProvider,

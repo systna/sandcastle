@@ -44,7 +44,6 @@ import { syncOut } from "./syncOut.js";
 import * as WorktreeManager from "./WorktreeManager.js";
 import { copyToWorktree } from "./CopyToWorktree.js";
 import { resolveCwd } from "./resolveCwd.js";
-import { defaultSessionPathsLayer } from "./SessionPaths.js";
 
 export interface CreateSandboxOptions {
   /** Explicit branch for the worktree (required). */
