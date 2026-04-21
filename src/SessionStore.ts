@@ -9,7 +9,8 @@
  */
 
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { BindMountSandboxHandle } from "./SandboxProvider.js";
 
 // ---------------------------------------------------------------------------
@@ -102,8 +103,8 @@ export const sandboxSessionStore = (
     readSession: async (id: string): Promise<string> => {
       const sandboxPath = join(sessionsDir, `${id}.jsonl`);
       const tmpPath = join(
-        dirname(sandboxPath),
-        `.${id}.jsonl.tmp.${Date.now()}`,
+        tmpdir(),
+        `sandcastle-session-${id}-${Date.now()}.jsonl`,
       );
       await handle.copyFileOut(sandboxPath, tmpPath);
       try {
@@ -115,10 +116,9 @@ export const sandboxSessionStore = (
     writeSession: async (id: string, content: string): Promise<void> => {
       const sandboxPath = join(sessionsDir, `${id}.jsonl`);
       const tmpPath = join(
-        dirname(sandboxPath),
-        `.${id}.jsonl.tmp.${Date.now()}`,
+        tmpdir(),
+        `sandcastle-session-${id}-${Date.now()}.jsonl`,
       );
-      await mkdir(dirname(tmpPath), { recursive: true });
       await writeFile(tmpPath, content);
       try {
         await handle.copyFileIn(tmpPath, sandboxPath);

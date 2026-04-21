@@ -319,6 +319,34 @@ describe("sandboxSessionStore", () => {
     }
   });
 
+  it("stages host-side temp files outside the sandbox projectsDir", async () => {
+    // projectsDir is a sandbox-only path that does not exist on the host.
+    // copyFileOut receives (sandboxPath, hostTmpPath); the hostTmpPath must be
+    // writable on the host — i.e. not under the sandbox-only projectsDir.
+    const sandboxOnlyProjectsDir = "/nonexistent-on-host/.claude/projects";
+    const sessionContent = JSON.stringify({ type: "init" });
+
+    const handle: Pick<BindMountSandboxHandle, "copyFileIn" | "copyFileOut"> = {
+      copyFileIn: async (hostPath: string) => {
+        // Must be able to read from the host tmp path.
+        await readFile(hostPath, "utf-8");
+      },
+      copyFileOut: async (_sandboxPath: string, hostPath: string) => {
+        // Must be able to write to the host tmp path.
+        await writeFile(hostPath, sessionContent);
+      },
+    };
+
+    const store = sandboxSessionStore(
+      "/workspace",
+      handle as BindMountSandboxHandle,
+      sandboxOnlyProjectsDir,
+    );
+
+    await expect(store.readSession("s1")).resolves.toBe(sessionContent);
+    await expect(store.writeSession("s2", "x")).resolves.toBeUndefined();
+  });
+
   it("exposes cwd", () => {
     const handle = {
       copyFileIn: async () => {},
