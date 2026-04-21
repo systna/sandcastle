@@ -718,9 +718,8 @@ Both provider types return a **sandbox handle** from their `create()` function. 
 | `exec`         | Both       | Run a command, optionally streaming stdout line-by-line via `options.onLine` |
 | `close`        | Both       | Tear down the sandbox                                                        |
 | `copyFileIn`   | Bind-mount | Copy a single file from the host into the sandbox                            |
-| `copyFileOut`  | Bind-mount | Copy a single file from the sandbox to the host                              |
+| `copyFileOut`  | Both       | Copy a single file from the sandbox to the host                              |
 | `copyIn`       | Isolated   | Copy a file or directory from the host into the sandbox                      |
-| `copyFileOut`  | Isolated   | Copy a single file from the sandbox to the host                              |
 | `worktreePath` | Both       | Absolute path to the repo directory inside the sandbox                       |
 
 ### `ExecResult`
@@ -747,6 +746,8 @@ import {
   type ExecResult,
 } from "@ai-hero/sandcastle";
 import { execFile, spawn } from "node:child_process";
+import { copyFile as fsCopyFile, mkdir as fsMkdir } from "node:fs/promises";
+import { dirname } from "node:path";
 import { createInterface } from "node:readline";
 
 const localProcess = () =>
@@ -817,19 +818,13 @@ const localProcess = () =>
         },
 
         copyFileIn: async (hostPath: string, sandboxPath: string) => {
-          const { copyFile } = await import("node:fs/promises");
-          const { mkdir } = await import("node:fs/promises");
-          const { dirname } = await import("node:path");
-          await mkdir(dirname(sandboxPath), { recursive: true });
-          await copyFile(hostPath, sandboxPath);
+          await fsMkdir(dirname(sandboxPath), { recursive: true });
+          await fsCopyFile(hostPath, sandboxPath);
         },
 
         copyFileOut: async (sandboxPath: string, hostPath: string) => {
-          const { copyFile } = await import("node:fs/promises");
-          const { mkdir } = await import("node:fs/promises");
-          const { dirname } = await import("node:path");
-          await mkdir(dirname(hostPath), { recursive: true });
-          await copyFile(sandboxPath, hostPath);
+          await fsMkdir(dirname(hostPath), { recursive: true });
+          await fsCopyFile(sandboxPath, hostPath);
         },
 
         close: async () => {

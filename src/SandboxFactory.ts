@@ -57,10 +57,42 @@ export class Sandbox extends Context.Tag("Sandbox")<
   SandboxService
 >() {}
 
+const getCopyIn = (
+  handle: BindMountSandboxHandle | IsolatedSandboxHandle | NoSandboxHandle,
+): SandboxService["copyIn"] => {
+  if ("copyIn" in handle) {
+    return (hostPath, sandboxPath) =>
+      Effect.tryPromise({
+        try: () =>
+          (handle as IsolatedSandboxHandle).copyIn(hostPath, sandboxPath),
+        catch: (e) =>
+          new CopyError({
+            message: `copyIn failed: ${e instanceof Error ? e.message : String(e)}`,
+          }),
+      });
+  }
+  if ("copyFileIn" in handle) {
+    return (hostPath, sandboxPath) =>
+      Effect.tryPromise({
+        try: () =>
+          (handle as BindMountSandboxHandle).copyFileIn(hostPath, sandboxPath),
+        catch: (e) =>
+          new CopyError({
+            message: `copyFileIn failed: ${e instanceof Error ? e.message : String(e)}`,
+          }),
+      });
+  }
+  return () =>
+    Effect.fail(
+      new CopyError({
+        message: "copyIn is not supported for this sandbox provider",
+      }),
+    );
+};
+
 /**
  * Wrap a Promise-based sandbox handle into an Effect-based SandboxService layer.
- * Works with both bind-mount handles (copyIn/copyFileOut unsupported) and
- * isolated handles (copyIn/copyFileOut delegated to the handle).
+ * Delegates copyIn/copyFileOut to the handle when available.
  */
 export const makeSandboxLayerFromHandle = (
   handle: BindMountSandboxHandle | IsolatedSandboxHandle | NoSandboxHandle,
@@ -75,36 +107,7 @@ export const makeSandboxLayerFromHandle = (
             message: `exec failed: ${e instanceof Error ? e.message : String(e)}`,
           }),
       }),
-    copyIn:
-      "copyIn" in handle
-        ? (hostPath, sandboxPath) =>
-            Effect.tryPromise({
-              try: () =>
-                (handle as IsolatedSandboxHandle).copyIn(hostPath, sandboxPath),
-              catch: (e) =>
-                new CopyError({
-                  message: `copyIn failed: ${e instanceof Error ? e.message : String(e)}`,
-                }),
-            })
-        : "copyFileIn" in handle
-          ? (hostPath, sandboxPath) =>
-              Effect.tryPromise({
-                try: () =>
-                  (handle as BindMountSandboxHandle).copyFileIn(
-                    hostPath,
-                    sandboxPath,
-                  ),
-                catch: (e) =>
-                  new CopyError({
-                    message: `copyFileIn failed: ${e instanceof Error ? e.message : String(e)}`,
-                  }),
-              })
-          : () =>
-              Effect.fail(
-                new CopyError({
-                  message: "copyIn is not supported for this sandbox provider",
-                }),
-              ),
+    copyIn: getCopyIn(handle),
     copyFileOut:
       "copyFileOut" in handle
         ? (sandboxPath, hostPath) =>
