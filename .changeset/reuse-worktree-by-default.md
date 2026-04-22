@@ -2,4 +2,4 @@
 "@ai-hero/sandcastle": patch
 ---
 
-Remove `throwOnDuplicateWorktree` option; worktrees are now reused when clean and throw with an actionable error when dirty.
+Remove `throwOnDuplicateWorktree` option; worktrees are now always reused — clean worktrees log a message, dirty worktrees log a warning.

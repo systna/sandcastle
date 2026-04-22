@@ -181,26 +181,23 @@ describe("WorktreeManager.create", () => {
     await run(remove(first.path));
   });
 
-  it("throws on dirty worktree collision with actionable message", async () => {
+  it("reuses dirty worktree with a warning", async () => {
     const repoDir = await setupRepo();
     await execAsync("git checkout -b my-branch", { cwd: repoDir });
     await commitFile(repoDir, "x.txt", "x", "branch commit");
     await execAsync("git checkout main", { cwd: repoDir });
 
-    const { path: existingPath } = await run(
-      create(repoDir, { branch: "my-branch" }),
-    );
+    const first = await run(create(repoDir, { branch: "my-branch" }));
 
     // Make the worktree dirty
-    await writeFile(join(existingPath, "dirty.txt"), "uncommitted");
+    await writeFile(join(first.path, "dirty.txt"), "uncommitted");
 
-    const err = await runFail(create(repoDir, { branch: "my-branch" }));
-    expect(err.message).toContain(existingPath);
-    expect(err.message).toMatch(/uncommitted changes/i);
-    expect(err.message).toMatch(/commit.*stash.*discard/i);
-    expect(err.message).toMatch(/git worktree remove/i);
+    const second = await run(create(repoDir, { branch: "my-branch" }));
 
-    await run(remove(existingPath));
+    expect(second.path).toBe(first.path);
+    expect(second.branch).toBe("my-branch");
+
+    await run(remove(first.path));
   });
 
   it("parallel runs on different branches work without interference", async () => {

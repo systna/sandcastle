@@ -151,28 +151,28 @@ describe("createWorktree", () => {
     await rm(hostDir, { recursive: true, force: true });
   });
 
-  it("throws when creating worktree on dirty branch", async () => {
+  it("reuses dirty worktree with a warning", async () => {
     const hostDir = await mkdtemp(join(tmpdir(), "ws-test-"));
     await initRepo(hostDir);
     await commitFile(hostDir, "init.txt", "init", "initial commit");
 
-    const ws = await createWorktree({
+    const ws1 = await createWorktree({
       branchStrategy: { type: "branch", branch: "dirty-branch" },
       cwd: hostDir,
     });
 
     // Make the worktree dirty
-    await writeFile(join(ws.worktreePath, "dirty.txt"), "uncommitted");
+    await writeFile(join(ws1.worktreePath, "dirty.txt"), "uncommitted");
 
-    await expect(
-      createWorktree({
-        branchStrategy: { type: "branch", branch: "dirty-branch" },
-        cwd: hostDir,
-      }),
-    ).rejects.toThrow(/uncommitted changes/i);
+    const ws2 = await createWorktree({
+      branchStrategy: { type: "branch", branch: "dirty-branch" },
+      cwd: hostDir,
+    });
+
+    expect(ws2.worktreePath).toBe(ws1.worktreePath);
 
     // Clean up
-    await rm(ws.worktreePath, { recursive: true, force: true });
+    await rm(ws1.worktreePath, { recursive: true, force: true });
     await execAsync("git worktree prune", { cwd: hostDir });
     await rm(hostDir, { recursive: true, force: true });
   });
