@@ -109,7 +109,7 @@ const listWorktrees = (
  *
  * When `branch` collides with an existing managed worktree:
  * - Clean → reuses the existing worktree.
- * - Dirty (uncommitted changes) → throws with actionable suggestions.
+ * - Dirty (uncommitted changes) → reuses with a console warning (ADR 0003).
  *
  * Collisions with the main working tree or external worktrees always throw.
  */

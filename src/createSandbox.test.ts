@@ -344,7 +344,7 @@ describe("createSandbox", () => {
     }
   });
 
-  it("errors when branch worktree is dirty", async () => {
+  it("reuses dirty worktree with warning (ADR 0003)", async () => {
     const hostDir = await mkdtemp(join(tmpdir(), "sandbox-test-"));
     await initRepo(hostDir);
     await commitFile(hostDir, "init.txt", "init", "initial commit");
@@ -362,17 +362,21 @@ describe("createSandbox", () => {
     await writeFile(join(sandbox1.worktreePath, "dirty.txt"), "uncommitted");
 
     try {
-      await expect(
-        createSandbox({
-          branch: "dirty-collision",
-          sandbox: testSandbox,
-          cwd: hostDir,
-          _test: {
-            buildSandboxLayer: (sandboxDir) =>
-              makeLocalSandboxLayer(sandboxDir),
-          },
-        }),
-      ).rejects.toThrow(/uncommitted changes/);
+      const sandbox2 = await createSandbox({
+        branch: "dirty-collision",
+        sandbox: testSandbox,
+        cwd: hostDir,
+        _test: {
+          buildSandboxLayer: (sandboxDir) =>
+            makeLocalSandboxLayer(sandboxDir),
+        },
+      });
+
+      // Should reuse the same worktree path
+      expect(sandbox2.worktreePath).toBe(sandbox1.worktreePath);
+      expect(sandbox2.branch).toBe("dirty-collision");
+
+      await sandbox2.close();
     } finally {
       await rm(sandbox1.worktreePath, { recursive: true, force: true });
       await execAsync("git worktree prune", { cwd: hostDir });
