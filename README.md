@@ -289,13 +289,14 @@ if (closeResult.preservedWorktreePath) {
 
 #### `Sandbox`
 
-| Property / Method       | Type                                               | Description                                 |
-| ----------------------- | -------------------------------------------------- | ------------------------------------------- |
-| `branch`                | string                                             | The branch the sandbox is on                |
-| `worktreePath`          | string                                             | Host path to the worktree                   |
-| `run(options)`          | `(SandboxRunOptions) => Promise<SandboxRunResult>` | Invoke an agent inside the existing sandbox |
-| `close()`               | `() => Promise<CloseResult>`                       | Tear down the container and sandbox         |
-| `[Symbol.asyncDispose]` | `() => Promise<void>`                              | Auto teardown via `await using`             |
+| Property / Method       | Type                                                               | Description                                  |
+| ----------------------- | ------------------------------------------------------------------ | -------------------------------------------- |
+| `branch`                | string                                                             | The branch the sandbox is on                 |
+| `worktreePath`          | string                                                             | Host path to the worktree                    |
+| `run(options)`          | `(SandboxRunOptions) => Promise<SandboxRunResult>`                 | Invoke an agent inside the existing sandbox  |
+| `interactive(options)`  | `(SandboxInteractiveOptions) => Promise<SandboxInteractiveResult>` | Launch an interactive session in the sandbox |
+| `close()`               | `() => Promise<CloseResult>`                                       | Tear down the container and sandbox          |
+| `[Symbol.asyncDispose]` | `() => Promise<void>`                                              | Auto teardown via `await using`              |
 
 #### `SandboxRunOptions`
 
@@ -310,6 +311,7 @@ if (closeResult.preservedWorktreePath) {
 | `idleTimeoutSeconds` | number             | `600`                         | Idle timeout in seconds — resets on each agent output event         |
 | `name`               | string             | —                             | Display name for the run                                            |
 | `logging`            | object             | file (auto-generated)         | `{ type: 'file', path }` or `{ type: 'stdout' }`                    |
+| `signal`             | AbortSignal        | —                             | Cancels the run when aborted; handle stays usable afterward         |
 
 #### `SandboxRunResult`
 

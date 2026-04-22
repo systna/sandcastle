@@ -7,7 +7,7 @@ import { promisify } from "node:util";
 import { Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
 import { claudeCode, pi } from "./AgentProvider.js";
-import { createSandbox } from "./createSandbox.js";
+import { createSandbox, type CreateSandboxOptions } from "./createSandbox.js";
 import { Sandbox } from "./SandboxFactory.js";
 import {
   createBindMountSandboxProvider,
@@ -1146,6 +1146,246 @@ describe("createSandbox", () => {
       await sandbox.close();
       await rm(hostDir, { recursive: true, force: true });
     }
+  });
+
+  it("sandbox.run() accepts signal option (type check)", async () => {
+    const hostDir = await mkdtemp(join(tmpdir(), "sandbox-test-"));
+    await initRepo(hostDir);
+    await commitFile(hostDir, "init.txt", "init", "initial commit");
+
+    const sandbox = await createSandbox({
+      branch: "test-signal-type",
+      sandbox: testSandbox,
+      cwd: hostDir,
+      _test: {
+        buildSandboxLayer: (sandboxDir) =>
+          makeMockAgentLayer(sandboxDir, async () => "agent output"),
+      },
+    });
+
+    try {
+      const ac = new AbortController();
+      const result = await sandbox.run({
+        agent: testProvider,
+        prompt: "do something",
+        signal: ac.signal,
+      });
+      expect(result.iterations.length).toBe(1);
+    } finally {
+      await sandbox.close();
+      await rm(hostDir, { recursive: true, force: true });
+    }
+  });
+
+  it("sandbox.run() rejects immediately with pre-aborted signal", async () => {
+    const hostDir = await mkdtemp(join(tmpdir(), "sandbox-test-"));
+    await initRepo(hostDir);
+    await commitFile(hostDir, "init.txt", "init", "initial commit");
+
+    const sandbox = await createSandbox({
+      branch: "test-signal-pre-abort",
+      sandbox: testSandbox,
+      cwd: hostDir,
+      _test: {
+        buildSandboxLayer: (sandboxDir) =>
+          makeMockAgentLayer(sandboxDir, async () => "agent output"),
+      },
+    });
+
+    try {
+      const reason = new DOMException("cancelled", "AbortError");
+      const ac = new AbortController();
+      ac.abort(reason);
+
+      await expect(
+        sandbox.run({
+          agent: testProvider,
+          prompt: "do something",
+          signal: ac.signal,
+        }),
+      ).rejects.toThrow("cancelled");
+    } finally {
+      await sandbox.close();
+      await rm(hostDir, { recursive: true, force: true });
+    }
+  });
+
+  it("sandbox.run() abort leaves handle usable for next run", async () => {
+    const hostDir = await mkdtemp(join(tmpdir(), "sandbox-test-"));
+    await initRepo(hostDir);
+    await commitFile(hostDir, "init.txt", "init", "initial commit");
+
+    const sandbox = await createSandbox({
+      branch: "test-signal-reuse",
+      sandbox: testSandbox,
+      cwd: hostDir,
+      _test: {
+        buildSandboxLayer: (sandboxDir) =>
+          makeMockAgentLayer(sandboxDir, async () => "agent output"),
+      },
+    });
+
+    try {
+      // First run: abort
+      const ac = new AbortController();
+      ac.abort(new DOMException("cancelled", "AbortError"));
+      await expect(
+        sandbox.run({
+          agent: testProvider,
+          prompt: "will be aborted",
+          signal: ac.signal,
+        }),
+      ).rejects.toThrow("cancelled");
+
+      // Second run: succeeds with fresh signal
+      const result = await sandbox.run({
+        agent: testProvider,
+        prompt: "should succeed",
+        signal: new AbortController().signal,
+      });
+      expect(result.iterations.length).toBe(1);
+    } finally {
+      await sandbox.close();
+      await rm(hostDir, { recursive: true, force: true });
+    }
+  });
+
+  it("sandbox.run() abort then close() works cleanly", async () => {
+    const hostDir = await mkdtemp(join(tmpdir(), "sandbox-test-"));
+    await initRepo(hostDir);
+    await commitFile(hostDir, "init.txt", "init", "initial commit");
+
+    const sandbox = await createSandbox({
+      branch: "test-signal-then-close",
+      sandbox: testSandbox,
+      cwd: hostDir,
+      _test: {
+        buildSandboxLayer: (sandboxDir) =>
+          makeMockAgentLayer(sandboxDir, async () => "agent output"),
+      },
+    });
+
+    // Abort
+    const ac = new AbortController();
+    ac.abort(new DOMException("cancelled", "AbortError"));
+    await expect(
+      sandbox.run({
+        agent: testProvider,
+        prompt: "will be aborted",
+        signal: ac.signal,
+      }),
+    ).rejects.toThrow("cancelled");
+
+    // Close should work fine
+    const closeResult = await sandbox.close();
+    expect(closeResult.preservedWorktreePath).toBeUndefined();
+    await rm(hostDir, { recursive: true, force: true });
+  });
+
+  it("sandbox.interactive() accepts signal option (type check)", async () => {
+    const hostDir = await mkdtemp(join(tmpdir(), "sandbox-test-"));
+    await initRepo(hostDir);
+    await commitFile(hostDir, "init.txt", "init", "initial commit");
+
+    const interactiveProvider = createBindMountSandboxProvider({
+      name: "test-interactive-signal",
+      create: async (opts) => ({
+        worktreePath: opts.worktreePath,
+        exec: async (cmd, execOpts) => {
+          const cwd = execOpts?.cwd ?? opts.worktreePath;
+          const result = await execAsync(cmd, { cwd });
+          return {
+            stdout: result.stdout,
+            stderr: result.stderr,
+            exitCode: 0,
+          };
+        },
+        interactiveExec: async () => ({ exitCode: 0 }),
+        copyFileIn: async () => {},
+        copyFileOut: async () => {},
+        close: async () => {},
+      }),
+    });
+
+    const sandbox = await createSandbox({
+      branch: "test-interactive-signal",
+      sandbox: interactiveProvider,
+      cwd: hostDir,
+    });
+
+    try {
+      const result = await sandbox.interactive({
+        agent: testProvider,
+        prompt: "test",
+        signal: new AbortController().signal,
+      });
+      expect(result.exitCode).toBe(0);
+    } finally {
+      await sandbox.close();
+      await rm(hostDir, { recursive: true, force: true });
+    }
+  });
+
+  it("sandbox.interactive() rejects with pre-aborted signal", async () => {
+    const hostDir = await mkdtemp(join(tmpdir(), "sandbox-test-"));
+    await initRepo(hostDir);
+    await commitFile(hostDir, "init.txt", "init", "initial commit");
+
+    const interactiveProvider = createBindMountSandboxProvider({
+      name: "test-interactive-preabort",
+      create: async (opts) => ({
+        worktreePath: opts.worktreePath,
+        exec: async (cmd, execOpts) => {
+          const cwd = execOpts?.cwd ?? opts.worktreePath;
+          const result = await execAsync(cmd, { cwd });
+          return {
+            stdout: result.stdout,
+            stderr: result.stderr,
+            exitCode: 0,
+          };
+        },
+        interactiveExec: async () => ({ exitCode: 0 }),
+        copyFileIn: async () => {},
+        copyFileOut: async () => {},
+        close: async () => {},
+      }),
+    });
+
+    const sandbox = await createSandbox({
+      branch: "test-interactive-preabort",
+      sandbox: interactiveProvider,
+      cwd: hostDir,
+    });
+
+    try {
+      const ac = new AbortController();
+      ac.abort(new DOMException("interactive-cancelled", "AbortError"));
+
+      await expect(
+        sandbox.interactive({
+          agent: testProvider,
+          prompt: "test",
+          signal: ac.signal,
+        }),
+      ).rejects.toThrow("interactive-cancelled");
+    } finally {
+      await sandbox.close();
+      await rm(hostDir, { recursive: true, force: true });
+    }
+  });
+
+  it("createSandbox() does not accept signal option (type check)", () => {
+    // This test validates at the type level — createSandbox should NOT accept signal.
+    // If someone adds signal to CreateSandboxOptions, this will fail at compile time.
+    const opts: CreateSandboxOptions = {
+      branch: "test",
+      sandbox: testSandbox,
+    };
+    // Verify signal is not a key on the options type
+    type HasSignal = "signal" extends keyof CreateSandboxOptions ? true : false;
+    const check: HasSignal = false;
+    expect(check).toBe(false);
+    expect(opts).toBeDefined();
   });
 
   it("copyToWorktree copies files into the worktree at creation time", async () => {

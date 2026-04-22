@@ -90,6 +90,16 @@ export interface SandboxRunOptions {
   readonly name?: string;
   /** Logging mode. */
   readonly logging?: LoggingOption;
+  /**
+   * An `AbortSignal` that cancels the run when aborted.
+   *
+   * - Pre-aborted signal rejects immediately without setup.
+   * - Mid-iteration abort kills the in-flight agent subprocess.
+   * - The rejected promise surfaces `signal.reason` verbatim.
+   * - The `Sandbox` handle remains usable after abort — call `.run()` again
+   *   with a fresh signal, or `.close()` to tear down.
+   */
+  readonly signal?: AbortSignal;
 }
 
 export interface SandboxRunResult {
@@ -116,6 +126,14 @@ export interface SandboxInteractiveOptions {
   readonly promptArgs?: PromptArgs;
   /** Display name for this interactive session. */
   readonly name?: string;
+  /**
+   * An `AbortSignal` that cancels the interactive session when aborted.
+   *
+   * - Pre-aborted signal rejects immediately without setup.
+   * - The rejected promise surfaces `signal.reason` verbatim.
+   * - The `Sandbox` handle remains usable after abort.
+   */
+  readonly signal?: AbortSignal;
 }
 
 export interface SandboxInteractiveResult {
@@ -186,6 +204,9 @@ const buildSandboxHandle = (
     worktreePath: worktreePath,
 
     run: async (runOptions: SandboxRunOptions): Promise<SandboxRunResult> => {
+      // If signal is already aborted, reject immediately without any setup
+      runOptions.signal?.throwIfAborted();
+
       const {
         agent: provider,
         prompt,
@@ -270,23 +291,31 @@ const buildSandboxHandle = (
         defaultSessionPathsLayer,
       );
 
-      const result = await Effect.runPromise(
-        Effect.gen(function* () {
-          const display = yield* Display;
-          yield* display.intro(runOptions.name ?? "sandcastle");
+      let result;
+      try {
+        result = await Effect.runPromise(
+          Effect.gen(function* () {
+            const display = yield* Display;
+            yield* display.intro(runOptions.name ?? "sandcastle");
 
-          return yield* orchestrate({
-            hostRepoDir,
-            iterations: maxIterations,
-            prompt: resolvedPrompt,
-            branch,
-            provider,
-            completionSignal: runOptions.completionSignal,
-            idleTimeoutSeconds: runOptions.idleTimeoutSeconds,
-            name: runOptions.name,
-          });
-        }).pipe(Effect.provide(runLayer)),
-      );
+            return yield* orchestrate({
+              hostRepoDir,
+              iterations: maxIterations,
+              prompt: resolvedPrompt,
+              branch,
+              provider,
+              completionSignal: runOptions.completionSignal,
+              idleTimeoutSeconds: runOptions.idleTimeoutSeconds,
+              name: runOptions.name,
+              signal: runOptions.signal,
+            });
+          }).pipe(Effect.provide(runLayer)),
+        );
+      } catch (error: unknown) {
+        // If the signal was aborted, surface its reason verbatim
+        runOptions.signal?.throwIfAborted();
+        throw error;
+      }
 
       return {
         iterations: result.iterations,
@@ -301,6 +330,9 @@ const buildSandboxHandle = (
     interactive: async (
       interactiveOptions: SandboxInteractiveOptions,
     ): Promise<SandboxInteractiveResult> => {
+      // If signal is already aborted, reject immediately without any setup
+      interactiveOptions.signal?.throwIfAborted();
+
       const { agent: provider, prompt, promptFile } = interactiveOptions;
 
       if (!provider.buildInteractiveArgs) {
@@ -318,65 +350,95 @@ const buildSandboxHandle = (
       const interactiveExecFn =
         providerHandle.interactiveExec.bind(providerHandle);
 
-      const lifecycleResult = await Effect.runPromise(
-        Effect.gen(function* () {
-          const rawPrompt = yield* resolvePrompt({ prompt, promptFile });
+      let lifecycleResult;
+      try {
+        lifecycleResult = await Effect.runPromise(
+          Effect.gen(function* () {
+            const rawPrompt = yield* resolvePrompt({ prompt, promptFile });
 
-          const userArgs = interactiveOptions.promptArgs ?? {};
-          const currentHostBranch =
-            yield* WorktreeManager.getCurrentBranch(hostRepoDir);
+            const userArgs = interactiveOptions.promptArgs ?? {};
+            const currentHostBranch =
+              yield* WorktreeManager.getCurrentBranch(hostRepoDir);
 
-          yield* validateNoBuiltInArgOverride(userArgs);
-          const effectiveArgs = {
-            SOURCE_BRANCH: branch,
-            TARGET_BRANCH: currentHostBranch,
-            ...userArgs,
-          };
-          const builtInArgKeysSet = new Set<string>(BUILT_IN_PROMPT_ARG_KEYS);
-          const resolvedPrompt = yield* substitutePromptArgs(
-            rawPrompt,
-            effectiveArgs,
-            builtInArgKeysSet,
-          );
+            yield* validateNoBuiltInArgOverride(userArgs);
+            const effectiveArgs = {
+              SOURCE_BRANCH: branch,
+              TARGET_BRANCH: currentHostBranch,
+              ...userArgs,
+            };
+            const builtInArgKeysSet = new Set<string>(BUILT_IN_PROMPT_ARG_KEYS);
+            const resolvedPrompt = yield* substitutePromptArgs(
+              rawPrompt,
+              effectiveArgs,
+              builtInArgKeysSet,
+            );
 
-          return yield* withSandboxLifecycle(
-            {
-              hostRepoDir,
-              sandboxRepoDir,
-              branch,
-              hostWorktreePath: worktreePath,
-              applyToHost,
-            },
-            (ctx) =>
-              Effect.gen(function* () {
-                const fullPrompt = yield* preprocessPrompt(
-                  resolvedPrompt,
-                  ctx.sandbox,
-                  ctx.sandboxRepoDir,
-                );
+            return yield* withSandboxLifecycle(
+              {
+                hostRepoDir,
+                sandboxRepoDir,
+                branch,
+                hostWorktreePath: worktreePath,
+                applyToHost,
+              },
+              (ctx) =>
+                Effect.gen(function* () {
+                  const fullPrompt = yield* preprocessPrompt(
+                    resolvedPrompt,
+                    ctx.sandbox,
+                    ctx.sandboxRepoDir,
+                  );
 
-                const interactiveArgs = provider.buildInteractiveArgs!({
-                  prompt: fullPrompt,
-                  dangerouslySkipPermissions: true,
-                });
-                const result = yield* Effect.promise(() =>
-                  interactiveExecFn(interactiveArgs, {
+                  const interactiveArgs = provider.buildInteractiveArgs!({
+                    prompt: fullPrompt,
+                    dangerouslySkipPermissions: true,
+                  });
+                  const execPromise = interactiveExecFn(interactiveArgs, {
                     stdin: process.stdin,
                     stdout: process.stdout,
                     stderr: process.stderr,
                     cwd: sandboxRepoDir,
-                  }),
-                );
+                  });
 
-                return result.exitCode;
-              }),
-          );
-        }).pipe(
-          Effect.provide(sandboxLayer),
-          Effect.provide(ClackDisplay.layer),
-          Effect.provide(NodeContext.layer),
-        ),
-      );
+                  // Race exec with abort signal if provided
+                  const signal = interactiveOptions.signal;
+                  const result = yield* Effect.promise(() => {
+                    if (!signal) return execPromise;
+                    if (signal.aborted) return Promise.reject(signal.reason);
+                    return new Promise<{ exitCode: number }>(
+                      (resolve, reject) => {
+                        const onAbort = () => reject(signal.reason);
+                        signal.addEventListener("abort", onAbort, {
+                          once: true,
+                        });
+                        execPromise.then(
+                          (r) => {
+                            signal.removeEventListener("abort", onAbort);
+                            resolve(r);
+                          },
+                          (e) => {
+                            signal.removeEventListener("abort", onAbort);
+                            reject(e);
+                          },
+                        );
+                      },
+                    );
+                  });
+
+                  return result.exitCode;
+                }),
+            );
+          }).pipe(
+            Effect.provide(sandboxLayer),
+            Effect.provide(ClackDisplay.layer),
+            Effect.provide(NodeContext.layer),
+          ),
+        );
+      } catch (error: unknown) {
+        // If the signal was aborted, surface its reason verbatim
+        interactiveOptions.signal?.throwIfAborted();
+        throw error;
+      }
 
       return {
         commits: lifecycleResult.commits,
