@@ -367,8 +367,7 @@ describe("createSandbox", () => {
         sandbox: testSandbox,
         cwd: hostDir,
         _test: {
-          buildSandboxLayer: (sandboxDir) =>
-            makeLocalSandboxLayer(sandboxDir),
+          buildSandboxLayer: (sandboxDir) => makeLocalSandboxLayer(sandboxDir),
         },
       });
 
@@ -1390,6 +1389,38 @@ describe("createSandbox", () => {
     const check: HasSignal = false;
     expect(check).toBe(false);
     expect(opts).toBeDefined();
+  });
+
+  it("forks new branch from baseBranch when specified", async () => {
+    const hostDir = await mkdtemp(join(tmpdir(), "sandbox-test-"));
+    await initRepo(hostDir);
+    await commitFile(hostDir, "init.txt", "init", "initial commit");
+
+    // Record the base commit's SHA before adding a second commit on main
+    const { stdout: baseSha } = await execAsync("git rev-parse HEAD", {
+      cwd: hostDir,
+    });
+    await commitFile(hostDir, "second.txt", "second", "second commit");
+
+    const sandbox = await createSandbox({
+      branch: "feature/from-base",
+      baseBranch: baseSha.trim(),
+      sandbox: testSandbox,
+      cwd: hostDir,
+      _test: {
+        buildSandboxLayer: (sandboxDir) => makeLocalSandboxLayer(sandboxDir),
+      },
+    });
+
+    try {
+      const { stdout: worktreeHead } = await execAsync("git rev-parse HEAD", {
+        cwd: sandbox.worktreePath,
+      });
+      expect(worktreeHead.trim()).toBe(baseSha.trim());
+    } finally {
+      await sandbox.close();
+      await rm(hostDir, { recursive: true, force: true });
+    }
   });
 
   it("copyToWorktree copies files into the worktree at creation time", async () => {

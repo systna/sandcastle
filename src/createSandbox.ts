@@ -48,6 +48,11 @@ import { resolveCwd } from "./resolveCwd.js";
 export interface CreateSandboxOptions {
   /** Explicit branch for the worktree (required). */
   readonly branch: string;
+  /**
+   * Ref to fork from when `branch` does not yet exist. Ignored when the branch
+   * already exists. Defaults to `HEAD`.
+   */
+  readonly baseBranch?: string;
   /** Sandbox provider (e.g. docker({ imageName: "sandcastle:myrepo" })). */
   readonly sandbox: SandboxProvider;
   /**
@@ -628,6 +633,7 @@ export const createSandbox = async (
       );
       const worktreeInfo = yield* WorktreeManager.create(hostRepoDir, {
         branch,
+        baseBranch: options.baseBranch,
       });
       return { hostRepoDir, worktreeInfo };
     }).pipe(Effect.provide(NodeContext.layer)),
