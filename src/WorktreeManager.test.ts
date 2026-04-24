@@ -331,6 +331,46 @@ describe("WorktreeManager.create", () => {
     const err = await runFail(create(repoDir, { branch: "main" }));
     expect(err.message).toMatch(/already checked out/i);
   });
+
+  it("does not write upstream tracking config even when autoSetupMerge is enabled", async () => {
+    const repoDir = await setupRepo();
+
+    // Enable the config that triggers .git/config writes during branch creation
+    await execAsync("git config branch.autoSetupMerge always", { cwd: repoDir });
+
+    const { path, branch } = await run(
+      create(repoDir, { branch: "sandcastle/no-tracking-test" }),
+    );
+
+    // If -c branch.autoSetupMerge=false is working, the new branch should
+    // have no upstream tracking config (no branch.<name>.remote or .merge)
+    const { stdout: trackingConfig } = await execAsync(
+      `git config --get-regexp "branch\\.sandcastle/no-tracking-test\\." || true`,
+      { cwd: repoDir },
+    );
+    expect(trackingConfig.trim()).toBe("");
+
+    await run(remove(path));
+  });
+
+  it("does not write upstream tracking config for temp branches when autoSetupMerge is enabled", async () => {
+    const repoDir = await setupRepo();
+
+    // Enable the config that triggers .git/config writes during branch creation
+    await execAsync("git config branch.autoSetupMerge always", { cwd: repoDir });
+
+    const { path, branch } = await run(create(repoDir));
+
+    // The temp branch should also have no upstream tracking config
+    const escapedBranch = branch.replace(/\//g, "\\/").replace(/\./g, "\\.");
+    const { stdout: trackingConfig } = await execAsync(
+      `git config --get-regexp "branch\\.${escapedBranch}\\." || true`,
+      { cwd: repoDir },
+    );
+    expect(trackingConfig.trim()).toBe("");
+
+    await run(remove(path));
+  });
 });
 
 describe("WorktreeManager.remove", () => {

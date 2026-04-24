@@ -6,6 +6,19 @@ import { WorktreeError, WorktreeTimeoutError, withTimeout } from "./errors.js";
 
 const WORKTREE_TIMEOUT_MS = 30_000;
 
+/**
+ * Git global flags that prevent `git worktree add -b` from writing upstream
+ * tracking config to `.git/config`. Without these, a user's global
+ * `branch.autoSetupMerge` or `push.autoSetupRemote` can cause a config write
+ * that races with other processes holding `.git/config.lock`.
+ */
+const NO_CONFIG_LOCK_FLAGS = [
+  "-c",
+  "branch.autoSetupMerge=false",
+  "-c",
+  "push.autoSetupRemote=false",
+];
+
 /** Format a timestamp as YYYYMMDD-HHMMSS */
 const formatTimestamp = (date: Date): string => {
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -181,11 +194,11 @@ export const create = (
           }),
         );
       }
-      yield* execGit(["worktree", "add", worktreePath, branch], repoDir).pipe(
+      yield* execGit([...NO_CONFIG_LOCK_FLAGS, "worktree", "add", worktreePath, branch], repoDir).pipe(
         Effect.catchAll((e) => {
           if (e.message.includes("invalid reference")) {
             return execGit(
-              ["worktree", "add", "-b", branch, worktreePath, opts?.baseBranch ?? "HEAD"],
+              [...NO_CONFIG_LOCK_FLAGS, "worktree", "add", "-b", branch, worktreePath, opts?.baseBranch ?? "HEAD"],
               repoDir,
             );
           }
@@ -194,7 +207,7 @@ export const create = (
       );
     } else {
       yield* execGit(
-        ["worktree", "add", "-b", branch, worktreePath, "HEAD"],
+        [...NO_CONFIG_LOCK_FLAGS, "worktree", "add", "-b", branch, worktreePath, "HEAD"],
         repoDir,
       ).pipe(
         Effect.catchAll((e) => {
