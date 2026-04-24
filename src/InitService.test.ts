@@ -945,6 +945,21 @@ describe("InitService scaffold", () => {
       expect(mainTs).toContain("implement.commits.length > 0");
     });
 
+    it("main.mts captures reviewer result and merges commits from both runs", async () => {
+      const dir = await makeDir();
+      await runScaffold(dir, { templateName: "parallel-planner-with-review" });
+
+      const mainTs = await readFile(
+        join(dir, ".sandcastle", "main.mts"),
+        "utf-8",
+      );
+      // Reviewer result must be captured, not discarded
+      expect(mainTs).toContain("const review = await sandbox.run");
+      // Commits from both implementer and reviewer must be merged
+      expect(mainTs).toContain("implement.commits");
+      expect(mainTs).toContain("review.commits");
+    });
+
     it("main.mts uses Promise.allSettled for parallel execution", async () => {
       const dir = await makeDir();
       await runScaffold(dir, { templateName: "parallel-planner-with-review" });
