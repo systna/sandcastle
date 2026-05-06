@@ -82,7 +82,7 @@ export const docker = (options?: DockerOptions): SandboxProvider => {
       const volumeMounts = allMounts.map((m) => ({
         hostPath: m.hostPath,
         sandboxPath: m.sandboxPath,
-        ...(m.readonly ? { readonly: true as const } : {}),
+        readonly: m.readonly,
       }));
 
       // Resolve image name

@@ -100,11 +100,10 @@ export const startContainer = (
       `${k}=${v}`,
     ]);
 
-    const volumeFlags = (options?.volumeMounts ?? []).flatMap((mount) => {
-      let flag = `type=bind,source=${mount.hostPath},target=${mount.sandboxPath}`;
-      if (mount.readonly) flag += ",readonly";
-      return ["--mount", flag];
-    });
+    const volumeFlags = (options?.volumeMounts ?? []).flatMap((mount) => [
+      "--mount",
+      `type=bind,source=${mount.hostPath},target=${mount.sandboxPath}${mount.readonly ? ",readonly" : ""}`,
+    ]);
 
     const workdirFlags = options?.workdir ? ["-w", options.workdir] : [];
     const userFlags = options?.user ? ["--user", options.user] : [];
