@@ -292,9 +292,20 @@ const initCommand = Command.make(
             podmanBuildImage(imageName, containerfileDir),
           );
         } else {
+          // Default build-args for UID alignment (Linux/macOS)
+          const initBuildArgs: Record<string, string> = {};
+          const initHostUid = process.getuid?.();
+          const initHostGid = process.getgid?.();
+          if (initHostUid !== undefined)
+            initBuildArgs.AGENT_UID = String(initHostUid);
+          if (initHostGid !== undefined)
+            initBuildArgs.AGENT_GID = String(initHostGid);
+
           yield* d.spinner(
             `Building ${providerLabel} image '${imageName}'...`,
-            buildImage(imageName, containerfileDir),
+            buildImage(imageName, containerfileDir, {
+              buildArgs: initBuildArgs,
+            }),
           );
         }
         yield* d.status("Init complete! Image built successfully.", "success");
@@ -342,10 +353,19 @@ const buildImageCommand = Command.make(
       const dockerfileDir = join(cwd, CONFIG_DIR);
       const dockerfilePath =
         dockerfile._tag === "Some" ? dockerfile.value : undefined;
+
+      // Default build-args for UID alignment (Linux/macOS)
+      const buildArgs: Record<string, string> = {};
+      const hostUid = process.getuid?.();
+      const hostGid = process.getgid?.();
+      if (hostUid !== undefined) buildArgs.AGENT_UID = String(hostUid);
+      if (hostGid !== undefined) buildArgs.AGENT_GID = String(hostGid);
+
       yield* d.spinner(
         `Building Docker image '${imageName}'...`,
         buildImage(imageName, dockerfileDir, {
           dockerfile: dockerfilePath,
+          buildArgs,
         }),
       );
 

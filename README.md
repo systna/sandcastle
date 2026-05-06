@@ -135,6 +135,10 @@ const result = await run({
   // Provider-specific config (like imageName, mounts) lives inside the provider factory call.
   sandbox: docker({
     imageName: "sandcastle:local",
+    // Optional: override the UID/GID used for --user flag (defaults to host UID/GID).
+    // Must match the UID baked into the image. Pre-flight check catches mismatches.
+    // containerUid: 1000,
+    // containerGid: 1000,
     // Optional: mount host directories into the sandbox (e.g. package manager caches)
     // hostPath supports absolute, tilde-expanded (~), and relative paths (resolved from cwd).
     // sandboxPath supports absolute and relative paths (resolved from the sandbox repo directory).
@@ -664,7 +668,7 @@ Errors if `.sandcastle/` already exists to prevent overwriting customizations.
 
 ### `sandcastle docker build-image`
 
-Rebuilds the Docker image from an existing `.sandcastle/` directory. Use this after modifying the Dockerfile.
+Rebuilds the Docker image from an existing `.sandcastle/` directory. Use this after modifying the Dockerfile. On Linux/macOS, the build automatically passes `--build-arg AGENT_UID=$(id -u)` and `AGENT_GID=$(id -g)` so the image's `agent` user matches the host UID — this prevents permission errors on image-built files without runtime chown.
 
 | Option         | Required | Default                      | Description                                                                       |
 | -------------- | -------- | ---------------------------- | --------------------------------------------------------------------------------- |

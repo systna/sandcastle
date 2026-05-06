@@ -7,12 +7,54 @@ vi.mock("node:child_process", () => ({
 }));
 
 import { execFile } from "node:child_process";
-import { startContainer } from "./DockerLifecycle.js";
+import { startContainer, buildImage } from "./DockerLifecycle.js";
 
 const mockExecFile = vi.mocked(execFile);
 
 afterEach(() => {
   mockExecFile.mockReset();
+});
+
+describe("buildImage", () => {
+  it("passes --build-arg flags when buildArgs is provided", async () => {
+    mockExecFile.mockImplementation((_cmd, _args, _opts, cb: any) => {
+      cb(null, "", "");
+      return undefined as any;
+    });
+
+    await Effect.runPromise(
+      buildImage("my-image", "/tmp/dir", {
+        buildArgs: { AGENT_UID: "1001", AGENT_GID: "1001" },
+      }),
+    );
+
+    const buildCall = mockExecFile.mock.calls.find(
+      ([, args]) => Array.isArray(args) && args[0] === "build",
+    );
+    expect(buildCall).toBeDefined();
+    const buildArgs = buildCall![1] as string[];
+    const uidIdx = buildArgs.indexOf("--build-arg");
+    expect(uidIdx).toBeGreaterThan(-1);
+    expect(buildArgs[uidIdx + 1]).toBe("AGENT_UID=1001");
+    const gidIdx = buildArgs.indexOf("--build-arg", uidIdx + 1);
+    expect(gidIdx).toBeGreaterThan(-1);
+    expect(buildArgs[gidIdx + 1]).toBe("AGENT_GID=1001");
+  });
+
+  it("does not pass --build-arg flags when buildArgs is omitted", async () => {
+    mockExecFile.mockImplementation((_cmd, _args, _opts, cb: any) => {
+      cb(null, "", "");
+      return undefined as any;
+    });
+
+    await Effect.runPromise(buildImage("my-image", "/tmp/dir"));
+
+    const buildCall = mockExecFile.mock.calls.find(
+      ([, args]) => Array.isArray(args) && args[0] === "build",
+    );
+    const buildArgs = buildCall![1] as string[];
+    expect(buildArgs).not.toContain("--build-arg");
+  });
 });
 
 describe("startContainer", () => {

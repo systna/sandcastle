@@ -35,20 +35,33 @@ const dockerExec = (args: string[]): Effect.Effect<string, DockerError> =>
 export const buildImage = (
   imageName: string,
   dockerfileDir: string,
-  options?: { readonly dockerfile?: string },
+  options?: {
+    readonly dockerfile?: string;
+    readonly buildArgs?: Record<string, string>;
+  },
 ): Effect.Effect<void, DockerError> =>
   Effect.gen(function* () {
+    const buildArgFlags = Object.entries(options?.buildArgs ?? {}).flatMap(
+      ([k, v]) => ["--build-arg", `${k}=${v}`],
+    );
     if (options?.dockerfile) {
       yield* dockerExec([
         "build",
         "-t",
         imageName,
+        ...buildArgFlags,
         "-f",
         resolve(options.dockerfile),
         process.cwd(),
       ]);
     } else {
-      yield* dockerExec(["build", "-t", imageName, resolve(dockerfileDir)]);
+      yield* dockerExec([
+        "build",
+        "-t",
+        imageName,
+        ...buildArgFlags,
+        resolve(dockerfileDir),
+      ]);
     }
   });
 
