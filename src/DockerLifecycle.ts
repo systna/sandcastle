@@ -52,8 +52,14 @@ export const buildImage = (
     }
   });
 
+export interface VolumeMount {
+  readonly hostPath: string;
+  readonly sandboxPath: string;
+  readonly readonly?: boolean;
+}
+
 export interface StartContainerOptions {
-  readonly volumeMounts?: readonly string[];
+  readonly volumeMounts?: readonly VolumeMount[];
   readonly workdir?: string;
   /** Run the container as this uid:gid instead of the Dockerfile's USER. */
   readonly user?: string;
@@ -95,8 +101,8 @@ export const startContainer = (
     ]);
 
     const volumeFlags = (options?.volumeMounts ?? []).flatMap((mount) => [
-      "-v",
-      mount,
+      "--mount",
+      `type=bind,source=${mount.hostPath},target=${mount.sandboxPath}${mount.readonly ? ",readonly" : ""}`,
     ]);
 
     const workdirFlags = options?.workdir ? ["-w", options.workdir] : [];

@@ -72,4 +72,79 @@ describe("startContainer", () => {
     const runArgs = runCall![1] as string[];
     expect(runArgs).not.toContain("--network");
   });
+
+  it("uses --mount type=bind format instead of -v for volume mounts", async () => {
+    mockExecFile.mockImplementation((_cmd, _args, _opts, cb: any) => {
+      cb(null, "", "");
+      return undefined as any;
+    });
+
+    await Effect.runPromise(
+      startContainer("ctr", "img", {}, {
+        volumeMounts: [
+          { hostPath: "/host/path", sandboxPath: "/sandbox/path" },
+        ],
+      }),
+    );
+
+    const runCall = mockExecFile.mock.calls.find(
+      ([, args]) => Array.isArray(args) && args[0] === "run",
+    );
+    const runArgs = runCall![1] as string[];
+    expect(runArgs).not.toContain("-v");
+    expect(runArgs).toContain("--mount");
+    const mountIdx = runArgs.indexOf("--mount");
+    expect(runArgs[mountIdx + 1]).toBe(
+      "type=bind,source=/host/path,target=/sandbox/path",
+    );
+  });
+
+  it("handles Windows-style host paths with colons correctly", async () => {
+    mockExecFile.mockImplementation((_cmd, _args, _opts, cb: any) => {
+      cb(null, "", "");
+      return undefined as any;
+    });
+
+    await Effect.runPromise(
+      startContainer("ctr", "img", {}, {
+        volumeMounts: [
+          { hostPath: "C:/Users/x/repo", sandboxPath: "/home/agent/workspace" },
+        ],
+      }),
+    );
+
+    const runCall = mockExecFile.mock.calls.find(
+      ([, args]) => Array.isArray(args) && args[0] === "run",
+    );
+    const runArgs = runCall![1] as string[];
+    expect(runArgs).not.toContain("-v");
+    const mountIdx = runArgs.indexOf("--mount");
+    expect(runArgs[mountIdx + 1]).toBe(
+      "type=bind,source=C:/Users/x/repo,target=/home/agent/workspace",
+    );
+  });
+
+  it("includes readonly flag for read-only mounts", async () => {
+    mockExecFile.mockImplementation((_cmd, _args, _opts, cb: any) => {
+      cb(null, "", "");
+      return undefined as any;
+    });
+
+    await Effect.runPromise(
+      startContainer("ctr", "img", {}, {
+        volumeMounts: [
+          { hostPath: "/host/path", sandboxPath: "/sandbox/path", readonly: true },
+        ],
+      }),
+    );
+
+    const runCall = mockExecFile.mock.calls.find(
+      ([, args]) => Array.isArray(args) && args[0] === "run",
+    );
+    const runArgs = runCall![1] as string[];
+    const mountIdx = runArgs.indexOf("--mount");
+    expect(runArgs[mountIdx + 1]).toBe(
+      "type=bind,source=/host/path,target=/sandbox/path,readonly",
+    );
+  });
 });

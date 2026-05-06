@@ -77,12 +77,13 @@ export const docker = (options?: DockerOptions): SandboxProvider => {
           (m) => m.hostPath === createOptions.worktreePath,
         )?.sandboxPath ?? "/home/agent/workspace";
 
-      // Build volume mount strings (internal mounts + user-provided mounts)
+      // Build volume mount list (internal mounts + user-provided mounts)
       const allMounts = [...createOptions.mounts, ...userMounts];
-      const volumeMounts = allMounts.map((m) => {
-        const base = `${m.hostPath}:${m.sandboxPath}`;
-        return m.readonly ? `${base}:ro` : base;
-      });
+      const volumeMounts = allMounts.map((m) => ({
+        hostPath: m.hostPath,
+        sandboxPath: m.sandboxPath,
+        readonly: m.readonly,
+      }));
 
       // Resolve image name
       const imageName =
