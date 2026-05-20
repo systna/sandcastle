@@ -1,5 +1,12 @@
 # @ai-hero/sandcastle
 
+## 0.5.11
+
+### Patch Changes
+
+- 5ac972a: Bump default Claude Code model from `claude-opus-4-6` to `claude-opus-4-7`.
+- 7cefd7c: Allow `noSandbox()` in `run()` and `createSandbox()`. Previously it was only accepted by `interactive()`. Use this when running Sandcastle from inside an already-isolated environment (containerized CI, VM, sandbox host) and you want the agent to operate directly on the host without a nested container.
+
 ## 0.5.10
 
 ### Patch Changes
