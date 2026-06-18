@@ -353,29 +353,32 @@ if (closeResult.preservedWorktreePath) {
 
 #### `SandboxRunOptions`
 
-| Option                     | Type               | Default                       | Description                                                                          |
-| -------------------------- | ------------------ | ----------------------------- | ------------------------------------------------------------------------------------ |
-| `agent`                    | AgentProvider      | —                             | **Required.** Agent provider (e.g. `claudeCode("claude-opus-4-7")`)                  |
-| `prompt`                   | string             | —                             | Inline prompt (mutually exclusive with `promptFile`)                                 |
-| `promptFile`               | string             | —                             | Path to prompt file (mutually exclusive with `prompt`)                               |
-| `promptArgs`               | PromptArgs         | —                             | Key-value map for `{{KEY}}` placeholder substitution                                 |
-| `maxIterations`            | number             | `1`                           | Maximum iterations to run                                                            |
-| `completionSignal`         | string \| string[] | `<promise>COMPLETE</promise>` | String(s) the agent emits to stop the iteration loop early                           |
-| `idleTimeoutSeconds`       | number             | `600`                         | Idle timeout in seconds — resets on each agent output event                          |
-| `completionTimeoutSeconds` | number             | `60`                          | Grace window after the completion signal is seen but the agent process hasn't exited |
-| `name`                     | string             | —                             | Display name for the run                                                             |
-| `logging`                  | object             | file (auto-generated)         | `{ type: 'file', path }` or `{ type: 'stdout' }`                                     |
-| `signal`                   | AbortSignal        | —                             | Cancels the run when aborted; handle stays usable afterward                          |
+| Option                     | Type               | Default                       | Description                                                                                                                          |
+| -------------------------- | ------------------ | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `agent`                    | AgentProvider      | —                             | **Required.** Agent provider (e.g. `claudeCode("claude-opus-4-7")`)                                                                  |
+| `prompt`                   | string             | —                             | Inline prompt (mutually exclusive with `promptFile`)                                                                                 |
+| `promptFile`               | string             | —                             | Path to prompt file (mutually exclusive with `prompt`)                                                                               |
+| `promptArgs`               | PromptArgs         | —                             | Key-value map for `{{KEY}}` placeholder substitution                                                                                 |
+| `maxIterations`            | number             | `1`                           | Maximum iterations to run                                                                                                            |
+| `completionSignal`         | string \| string[] | `<promise>COMPLETE</promise>` | String(s) the agent emits to stop the iteration loop early                                                                           |
+| `idleTimeoutSeconds`       | number             | `600`                         | Idle timeout in seconds — resets on each agent output event                                                                          |
+| `completionTimeoutSeconds` | number             | `60`                          | Grace window after the completion signal is seen but the agent process hasn't exited                                                 |
+| `name`                     | string             | —                             | Display name for the run                                                                                                             |
+| `logging`                  | object             | file (auto-generated)         | `{ type: 'file', path }` or `{ type: 'stdout' }`                                                                                     |
+| `resumeSession`            | string             | —                             | Resume a prior session by ID for agents that support resume. Incompatible with `maxIterations > 1`. Session file must exist on host. |
+| `signal`                   | AbortSignal        | —                             | Cancels the run when aborted; handle stays usable afterward                                                                          |
 
 #### `SandboxRunResult`
 
-| Field              | Type                | Description                                                        |
-| ------------------ | ------------------- | ------------------------------------------------------------------ |
-| `iterations`       | `IterationResult[]` | Per-iteration results (use `.length` for the count)                |
-| `completionSignal` | string?             | The matched completion signal string, or `undefined` if none fired |
-| `stdout`           | string              | Combined agent output from all iterations                          |
-| `commits`          | `{ sha }[]`         | Commits created during the run                                     |
-| `logFilePath`      | string?             | Path to the log file (only when logging to a file)                 |
+| Field                      | Type                                                                                     | Description                                                                                                                         |
+| -------------------------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `iterations`               | `IterationResult[]`                                                                      | Per-iteration results (use `.length` for the count)                                                                                 |
+| `completionSignal`         | string?                                                                                  | The matched completion signal string, or `undefined` if none fired                                                                  |
+| `stdout`                   | string                                                                                   | Combined agent output from all iterations                                                                                           |
+| `commits`                  | `{ sha }[]`                                                                              | Commits created during the run                                                                                                      |
+| `logFilePath`              | string?                                                                                  | Path to the log file (only when logging to a file)                                                                                  |
+| `resume(prompt, options?)` | `(prompt: string, options?: ResumeSandboxRunResultOptions) => Promise<SandboxRunResult>` | Continue the captured session for one iteration inside the same warm sandbox. Present only when the provider captured a session id. |
+| `fork(prompt, options?)`   | `(prompt: string, options?: ResumeSandboxRunResultOptions) => Promise<SandboxRunResult>` | Fork the captured session for one iteration inside the same warm sandbox. The parent session is left intact (ADR 0018).             |
 
 #### `CloseResult`
 
