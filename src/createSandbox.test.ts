@@ -803,6 +803,165 @@ describe("createSandbox", () => {
     }
   });
 
+  it("sandbox.exec() runs a command and returns the ExecResult (test-mode path)", async () => {
+    const hostDir = await mkdtemp(join(tmpdir(), "sandbox-test-"));
+    await initRepo(hostDir);
+    await commitFile(hostDir, "init.txt", "init", "initial commit");
+
+    const sandbox = await createSandbox({
+      branch: "test-exec-branch",
+      sandbox: testSandbox,
+      cwd: hostDir,
+      _test: {
+        buildSandbox: (sandboxDir) => makeLocalSandbox(sandboxDir),
+      },
+    });
+
+    try {
+      const result = await sandbox.exec("echo hello");
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout.trim()).toBe("hello");
+    } finally {
+      await sandbox.close();
+      await rm(hostDir, { recursive: true, force: true });
+    }
+  });
+
+  it("sandbox.exec() defaults cwd to the sandbox repo path", async () => {
+    const hostDir = await mkdtemp(join(tmpdir(), "sandbox-test-"));
+    await initRepo(hostDir);
+    await commitFile(hostDir, "init.txt", "init", "initial commit");
+
+    const sandbox = await createSandbox({
+      branch: "test-exec-cwd-branch",
+      sandbox: testSandbox,
+      cwd: hostDir,
+      _test: {
+        buildSandbox: (sandboxDir) => makeLocalSandbox(sandboxDir),
+      },
+    });
+
+    try {
+      const result = await sandbox.exec("pwd");
+      // In test mode, sandboxRepoDir === worktreePath.
+      expect(result.stdout.trim()).toBe(sandbox.worktreePath);
+    } finally {
+      await sandbox.close();
+      await rm(hostDir, { recursive: true, force: true });
+    }
+  });
+
+  it("sandbox.exec() returns non-zero exit codes without throwing", async () => {
+    const hostDir = await mkdtemp(join(tmpdir(), "sandbox-test-"));
+    await initRepo(hostDir);
+    await commitFile(hostDir, "init.txt", "init", "initial commit");
+
+    const sandbox = await createSandbox({
+      branch: "test-exec-nonzero-branch",
+      sandbox: testSandbox,
+      cwd: hostDir,
+      _test: {
+        buildSandbox: (sandboxDir) => makeLocalSandbox(sandboxDir),
+      },
+    });
+
+    try {
+      const result = await sandbox.exec("exit 7");
+      expect(result.exitCode).toBe(7);
+    } finally {
+      await sandbox.close();
+      await rm(hostDir, { recursive: true, force: true });
+    }
+  });
+
+  it("sandbox.exec() allows the caller to override the default cwd", async () => {
+    const hostDir = await mkdtemp(join(tmpdir(), "sandbox-test-"));
+    await initRepo(hostDir);
+    await commitFile(hostDir, "init.txt", "init", "initial commit");
+
+    const sandbox = await createSandbox({
+      branch: "test-exec-cwd-override",
+      sandbox: testSandbox,
+      cwd: hostDir,
+      _test: {
+        buildSandbox: (sandboxDir) => makeLocalSandbox(sandboxDir),
+      },
+    });
+
+    try {
+      const result = await sandbox.exec("pwd", { cwd: hostDir });
+      expect(result.stdout.trim()).toBe(hostDir);
+    } finally {
+      await sandbox.close();
+      await rm(hostDir, { recursive: true, force: true });
+    }
+  });
+
+  it("sandbox.exec() delegates to providerHandle.exec() (non-test mode)", async () => {
+    const hostDir = await mkdtemp(join(tmpdir(), "sandbox-test-"));
+    await initRepo(hostDir);
+    await commitFile(hostDir, "init.txt", "init", "initial commit");
+
+    const gitTmpDir = mkdtempSync(join(tmpdir(), "test-gitconfig-"));
+    const globalConfigPath = join(gitTmpDir, ".gitconfig");
+    writeFileSync(globalConfigPath, "");
+    const isolatedEnv = {
+      ...process.env,
+      GIT_CONFIG_GLOBAL: globalConfigPath,
+    };
+
+    let userExecCmd: string | undefined;
+    let userExecCwd: string | undefined;
+
+    const spyProvider = createBindMountSandboxProvider({
+      name: "spy-exec",
+      create: async (opts) => ({
+        worktreePath: opts.worktreePath,
+        exec: async (cmd, execOpts) => {
+          // Sandcastle issues a `git config --global --add safe.directory ...`
+          // command before user code can run; only record the user-issued one.
+          if (cmd === "echo hello-from-provider") {
+            userExecCmd = cmd;
+            userExecCwd = execOpts?.cwd;
+            return {
+              stdout: "hello-from-provider\n",
+              stderr: "",
+              exitCode: 0,
+            };
+          }
+          const cwd = execOpts?.cwd ?? opts.worktreePath;
+          const result = await execAsync(cmd, { cwd, env: isolatedEnv });
+          return {
+            stdout: result.stdout,
+            stderr: result.stderr,
+            exitCode: 0,
+          };
+        },
+        copyFileIn: async () => {},
+        copyFileOut: async () => {},
+        close: async () => {},
+      }),
+    });
+
+    const sandbox = await createSandbox({
+      branch: "test-exec-delegates",
+      sandbox: spyProvider,
+      cwd: hostDir,
+    });
+
+    try {
+      const result = await sandbox.exec("echo hello-from-provider");
+      expect(result.stdout).toBe("hello-from-provider\n");
+      expect(userExecCmd).toBe("echo hello-from-provider");
+      // cwd should default to the provider's worktreePath.
+      expect(userExecCwd).toBe(sandbox.worktreePath);
+    } finally {
+      await sandbox.close();
+      await rm(hostDir, { recursive: true, force: true });
+      await rm(gitTmpDir, { recursive: true, force: true });
+    }
+  });
+
   it("sandbox.close() removes worktree when clean, returns no preservedWorktreePath", async () => {
     const hostDir = await mkdtemp(join(tmpdir(), "sandbox-test-"));
     await initRepo(hostDir);

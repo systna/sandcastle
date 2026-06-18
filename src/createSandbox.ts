@@ -49,6 +49,7 @@ import type {
   NoSandboxHandle,
   MergeToHeadBranchStrategy,
   NamedBranchStrategy,
+  ExecResult,
 } from "./SandboxProvider.js";
 import { startSandbox } from "./startSandbox.js";
 import { syncOut } from "./syncOut.js";
@@ -231,10 +232,34 @@ export interface Sandbox {
   interactive(
     options: SandboxInteractiveOptions,
   ): Promise<SandboxInteractiveResult>;
+  /**
+   * Execute a command inside the existing sandbox.
+   *
+   * `cwd` defaults to the sandbox repo path (same default `interactive()`
+   * uses), so callers get the same working directory across providers. Pass
+   * `cwd` to override.
+   *
+   * Returns the full `ExecResult` — non-zero `exitCode` is surfaced, not
+   * thrown. Callers that want strict semantics should check `result.exitCode`
+   * themselves (matching the contract of `BindMountSandboxHandle.exec`).
+   */
+  exec(command: string, options?: SandboxExecOptions): Promise<ExecResult>;
   /** Tear down the sandbox and worktree. */
   close(): Promise<CloseResult>;
   /** Auto teardown via `await using`. */
   [Symbol.asyncDispose](): Promise<void>;
+}
+
+/** Options accepted by `Sandbox.exec()`. Mirrors the provider handle's `exec` options. */
+export interface SandboxExecOptions {
+  /** Per-line stdout callback for streaming output. */
+  readonly onLine?: (line: string) => void;
+  /** Working directory for the command. Defaults to the sandbox repo path. */
+  readonly cwd?: string;
+  /** Run the command with sudo, when the provider supports it. */
+  readonly sudo?: boolean;
+  /** Stdin payload — piped to the child process and then closed. Avoids the Linux 128 KB per-arg limit. */
+  readonly stdin?: string;
 }
 
 /** @internal Context for building Sandbox handle methods. */
@@ -655,6 +680,18 @@ const buildSandboxHandle = (
         commits: lifecycleResult.commits,
         exitCode: lifecycleResult.result,
       };
+    },
+
+    exec: async (
+      command: string,
+      options?: SandboxExecOptions,
+    ): Promise<ExecResult> => {
+      const mergedOptions = { cwd: sandboxRepoDir, ...options };
+      if (providerHandle) {
+        return providerHandle.exec(command, mergedOptions);
+      }
+      // Test-mode fallback: no providerHandle, only the Effect SandboxService.
+      return Effect.runPromise(sandbox.exec(command, mergedOptions));
     },
 
     close: async (): Promise<CloseResult> => close(),

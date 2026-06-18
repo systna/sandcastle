@@ -311,6 +311,35 @@ const reviewResult = await sandbox.run({
 
 Commits from all `run()` calls accumulate on the same branch. The sandbox container stays alive between runs, so installed dependencies and build artifacts persist.
 
+`sandbox.exec()` lets the harness run shell commands directly in the same warm sandbox — handy for gating an implement step on a quick verification before kicking off the review:
+
+```typescript
+await using sandbox = await createSandbox({
+  branch: "agent/fix-42",
+  sandbox: docker(),
+  hooks: { sandbox: { onSandboxReady: [{ command: "npm install" }] } },
+});
+
+await sandbox.run({
+  agent: claudeCode("claude-opus-4-7"),
+  promptFile: ".sandcastle/implement.md",
+  maxIterations: 5,
+});
+
+// Verify before review — non-zero exitCode is returned, not thrown.
+const tests = await sandbox.exec("npm test");
+if (tests.exitCode !== 0) {
+  throw new Error(`Tests failed:\n${tests.stdout}\n${tests.stderr}`);
+}
+
+await sandbox.run({
+  agent: claudeCode("claude-sonnet-4-6"),
+  prompt: "Review the changes and fix any issues.",
+});
+```
+
+`cwd` defaults to the sandbox repo path, matching `interactive()`. Pass `cwd` to override.
+
 #### Automatic cleanup with `await using`
 
 `await using` calls `sandbox.close()` automatically when the block exits. If the sandbox has uncommitted changes, the worktree is preserved on disk; if clean, both container and worktree are removed.
@@ -342,14 +371,15 @@ if (closeResult.preservedWorktreePath) {
 
 #### `Sandbox`
 
-| Property / Method       | Type                                                               | Description                                  |
-| ----------------------- | ------------------------------------------------------------------ | -------------------------------------------- |
-| `branch`                | string                                                             | The branch the sandbox is on                 |
-| `worktreePath`          | string                                                             | Host path to the worktree                    |
-| `run(options)`          | `(SandboxRunOptions) => Promise<SandboxRunResult>`                 | Invoke an agent inside the existing sandbox  |
-| `interactive(options)`  | `(SandboxInteractiveOptions) => Promise<SandboxInteractiveResult>` | Launch an interactive session in the sandbox |
-| `close()`               | `() => Promise<CloseResult>`                                       | Tear down the container and sandbox          |
-| `[Symbol.asyncDispose]` | `() => Promise<void>`                                              | Auto teardown via `await using`              |
+| Property / Method       | Type                                                                     | Description                                                                                                               |
+| ----------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| `branch`                | string                                                                   | The branch the sandbox is on                                                                                              |
+| `worktreePath`          | string                                                                   | Host path to the worktree                                                                                                 |
+| `run(options)`          | `(SandboxRunOptions) => Promise<SandboxRunResult>`                       | Invoke an agent inside the existing sandbox                                                                               |
+| `interactive(options)`  | `(SandboxInteractiveOptions) => Promise<SandboxInteractiveResult>`       | Launch an interactive session in the sandbox                                                                              |
+| `exec(cmd, options?)`   | `(command: string, options?: SandboxExecOptions) => Promise<ExecResult>` | Run a shell command in the sandbox. `cwd` defaults to the sandbox repo path. Non-zero `exitCode` is returned, not thrown. |
+| `close()`               | `() => Promise<CloseResult>`                                             | Tear down the container and sandbox                                                                                       |
+| `[Symbol.asyncDispose]` | `() => Promise<void>`                                                    | Auto teardown via `await using`                                                                                           |
 
 #### `SandboxRunOptions`
 
