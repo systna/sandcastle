@@ -1,5 +1,16 @@
 # @ai-hero/sandcastle
 
+## 0.12.0
+
+### Minor Changes
+
+- 1e15922: Bump default Claude Code model from `claude-opus-4-7` to `claude-opus-4-8`. The new default applies to the `DEFAULT_MODEL` constant, the `claude-code` agent entry surfaced by `sandcastle init`, and the scaffolded templates (`blank`, `parallel-planner`, `parallel-planner-with-review`). Passing an explicit model to `claudeCode(...)` is unaffected.
+- 0f577a4: Add `sandbox.exec(command, options?)` to the `Sandbox` handle returned by `createSandbox()` (and by `worktree.createSandbox()`). The method delegates to the provider handle's `exec()` and returns the full `ExecResult` — non-zero `exitCode` is surfaced, not thrown — so harnesses can run shell commands (tests, lints, custom verification gates) directly in the same warm sandbox between `run()` calls without reaching for the underlying provider handle. `cwd` defaults to the sandbox repo path so behavior is consistent across providers; pass `cwd` to override.
+
+### Patch Changes
+
+- c505d49: Fix file-mode logging so streamed agent text flows as contiguous prose instead of one chunk per line. Added a dedicated `textChunk` streaming method to the display service (raw, no implied newline in file mode) and pointed the text-delta buffer at it, leaving the line-oriented `text()` for discrete entries like context-window summaries. Structured entries (tool calls, status, summaries) still always begin on their own line, even when they immediately follow a mid-line streamed chunk.
+
 ## 0.11.0
 
 ### Minor Changes
