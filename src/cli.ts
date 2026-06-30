@@ -393,6 +393,24 @@ const initCommand = Command.make(
         selectedTemplate = selected as string;
       }
 
+      // Fixed-role templates (e.g. sequential-reviewer) pin their role agents —
+      // Claude Code implements, Codex reviews — and own their Dockerfile and
+      // main.mts. The selected agent does not apply; force Claude Code (its env
+      // block is what `.env.example` needs) and note the override so an explicit
+      // --agent isn't silently dropped.
+      const selectedTemplateMeta = templates.find(
+        (t) => t.name === selectedTemplate,
+      );
+      if (selectedTemplateMeta?.scaffoldStrategy === "fixed-role") {
+        if (selectedAgent.name !== "claude-code") {
+          clack.log.info(
+            `${selectedTemplate} uses fixed roles: Claude Code implementer and Codex reviewer. ` +
+              `Ignoring the selected agent (${selectedAgent.name}) for this template.`,
+          );
+        }
+        selectedAgent = getAgent("claude-code")!;
+      }
+
       // Offer to create the "Sandcastle" label on the repo (skip for non-GitHub issue trackers).
       // CLI flag > interactive confirm. The flag is only meaningful for the github-issues tracker.
       let shouldCreateLabel = false;

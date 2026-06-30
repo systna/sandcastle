@@ -383,20 +383,21 @@ if (closeResult.preservedWorktreePath) {
 
 #### `SandboxRunOptions`
 
-| Option                     | Type               | Default                       | Description                                                                                                                          |
-| -------------------------- | ------------------ | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `agent`                    | AgentProvider      | —                             | **Required.** Agent provider (e.g. `claudeCode("claude-opus-4-8")`)                                                                  |
-| `prompt`                   | string             | —                             | Inline prompt (mutually exclusive with `promptFile`)                                                                                 |
-| `promptFile`               | string             | —                             | Path to prompt file (mutually exclusive with `prompt`)                                                                               |
-| `promptArgs`               | PromptArgs         | —                             | Key-value map for `{{KEY}}` placeholder substitution                                                                                 |
-| `maxIterations`            | number             | `1`                           | Maximum iterations to run                                                                                                            |
-| `completionSignal`         | string \| string[] | `<promise>COMPLETE</promise>` | String(s) the agent emits to stop the iteration loop early                                                                           |
-| `idleTimeoutSeconds`       | number             | `600`                         | Idle timeout in seconds — resets on each agent output event                                                                          |
-| `completionTimeoutSeconds` | number             | `60`                          | Grace window after the completion signal is seen but the agent process hasn't exited                                                 |
-| `name`                     | string             | —                             | Display name for the run                                                                                                             |
-| `logging`                  | object             | file (auto-generated)         | `{ type: 'file', path }` or `{ type: 'stdout' }`                                                                                     |
-| `resumeSession`            | string             | —                             | Resume a prior session by ID for agents that support resume. Incompatible with `maxIterations > 1`. Session file must exist on host. |
-| `signal`                   | AbortSignal        | —                             | Cancels the run when aborted; handle stays usable afterward                                                                          |
+| Option                     | Type               | Default                       | Description                                                                                                                                                                                                    |
+| -------------------------- | ------------------ | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agent`                    | AgentProvider      | —                             | **Required.** Agent provider (e.g. `claudeCode("claude-opus-4-8")`)                                                                                                                                            |
+| `prompt`                   | string             | —                             | Inline prompt (mutually exclusive with `promptFile`)                                                                                                                                                           |
+| `promptFile`               | string             | —                             | Path to prompt file (mutually exclusive with `prompt`)                                                                                                                                                         |
+| `promptArgs`               | PromptArgs         | —                             | Key-value map for `{{KEY}}` placeholder substitution                                                                                                                                                           |
+| `maxIterations`            | number             | `1`                           | Maximum iterations to run                                                                                                                                                                                      |
+| `completionSignal`         | string \| string[] | `<promise>COMPLETE</promise>` | String(s) the agent emits to stop the iteration loop early                                                                                                                                                     |
+| `idleTimeoutSeconds`       | number             | `600`                         | Idle timeout in seconds — resets on each agent output event                                                                                                                                                    |
+| `completionTimeoutSeconds` | number             | `60`                          | Grace window after the completion signal is seen but the agent process hasn't exited                                                                                                                           |
+| `name`                     | string             | —                             | Display name for the run                                                                                                                                                                                       |
+| `logging`                  | object             | file (auto-generated)         | `{ type: 'file', path }` or `{ type: 'stdout' }`                                                                                                                                                               |
+| `resumeSession`            | string             | —                             | Resume a prior session by ID for agents that support resume. Incompatible with `maxIterations > 1`. Session file must exist on host.                                                                           |
+| `signal`                   | AbortSignal        | —                             | Cancels the run when aborted; handle stays usable afterward                                                                                                                                                    |
+| `output`                   | OutputDefinition   | —                             | Structured output (`Output.object(…)` / `Output.string(…)`). Requires `maxIterations === 1`; the resolved prompt must contain the tag. Mirrors top-level `run()`. See [Structured output](#structured-output). |
 
 #### `SandboxRunResult`
 
@@ -409,6 +410,7 @@ if (closeResult.preservedWorktreePath) {
 | `logFilePath`              | string?                                                                                  | Path to the log file (only when logging to a file)                                                                                  |
 | `resume(prompt, options?)` | `(prompt: string, options?: ResumeSandboxRunResultOptions) => Promise<SandboxRunResult>` | Continue the captured session for one iteration inside the same warm sandbox. Present only when the provider captured a session id. |
 | `fork(prompt, options?)`   | `(prompt: string, options?: ResumeSandboxRunResultOptions) => Promise<SandboxRunResult>` | Fork the captured session for one iteration inside the same warm sandbox. The parent session is left intact (ADR 0018).             |
+| `output`                   | T?                                                                                       | Typed structured output (only present when the `output` option is set)                                                              |
 
 #### `CloseResult`
 
@@ -710,6 +712,8 @@ console.log(result.output.score); // typed as number
 
 `Output.string({ tag })` extracts the tag contents as a plain string (trimmed, no JSON parsing). Both helpers require `maxIterations` to be `1` (the default). The resolved prompt must contain the configured opening tag literal.
 
+The reusable `sandbox.run()` ([`createSandbox()`](#createsandbox--reusable-sandbox)) accepts the same `output` option with identical semantics, so you can extract typed payloads from successive agents in one warm sandbox.
+
 When extraction or validation fails, `run()` throws a `StructuredOutputError`. Alongside `tag`, `rawMatched`, `cause`, `commits`, `branch`, and `preservedWorktreePath`, the error carries the `sessionId` (and `sessionFilePath`, when the session was captured) of the run that produced the bad output.
 
 Pass `maxRetries` to have Sandcastle handle the retry loop for you. Each retry resumes the same agent session and feeds back a token-efficient description of the error, so the agent can re-emit a corrected tag without redoing the work. Retries require an agent provider that supports session resumption (`claudeCode`, `codex`, `pi`) — calling `run()` with `maxRetries > 0` against a non-resumable provider (`cursor`, `opencode`, `copilot`) throws immediately.
@@ -751,13 +755,13 @@ try {
 
 `sandcastle init` prompts you to choose a sandbox provider (Docker or Podman), an issue tracker (GitHub Issues, Beads, or Custom), and a template, which scaffolds a ready-to-use prompt and `main.mts` suited to a specific workflow. If your project's `package.json` has `"type": "module"`, the file will be named `main.ts` instead. Choosing **Custom** scaffolds the project in a deliberately broken-until-configured state plus a `.sandcastle/SETUP_ISSUE_TRACKER.md` prompt you feed to your coding agent, which wires up your own tracker by editing the scaffolded files in place. Five templates are available:
 
-| Template                       | Description                                                               |
-| ------------------------------ | ------------------------------------------------------------------------- |
-| `blank`                        | Bare scaffold — write your own prompt and orchestration                   |
-| `simple-loop`                  | Picks issues one by one and closes them                                   |
-| `sequential-reviewer`          | Implements issues one by one, with a code review step after each          |
-| `parallel-planner`             | Plans parallelizable issues, executes on separate branches, then merges   |
-| `parallel-planner-with-review` | Plans parallelizable issues, executes with per-branch review, then merges |
+| Template                       | Description                                                                 |
+| ------------------------------ | --------------------------------------------------------------------------- |
+| `blank`                        | Bare scaffold — write your own prompt and orchestration                     |
+| `simple-loop`                  | Picks issues one by one and closes them                                     |
+| `sequential-reviewer`          | Implements issues one by one with a structured reviewer gate before closure |
+| `parallel-planner`             | Plans parallelizable issues, executes on separate branches, then merges     |
+| `parallel-planner-with-review` | Plans parallelizable issues, executes with per-branch review, then merges   |
 
 Select a template during `sandcastle init` when prompted, or re-run init in a fresh repo to try a different one.
 
@@ -767,21 +771,23 @@ Select a template during `sandcastle init` when prompted, or re-run init in a fr
 
 Scaffolds the `.sandcastle/` config directory and builds the container image. This is the first command you run in a new repo. You choose a sandbox provider (Docker or Podman) during init — selecting Podman writes a `Containerfile` instead of `Dockerfile` and uses `sandcastle podman build-image` for the build step.
 
-Init detects your host package manager (npm, pnpm, yarn, or bun) from a `packageManager` field or lockfile, defaulting to npm. Templates whose `main` file imports a host dependency — the planner templates import [Zod](https://zod.dev) for their `<plan>` output schema — prompt you to install it with that package manager when it isn't already in your `package.json`, so the first `npx tsx .sandcastle/main.ts` doesn't fail with `ERR_MODULE_NOT_FOUND`.
+Init detects your host package manager (npm, pnpm, yarn, or bun) from a `packageManager` field or lockfile, defaulting to npm. Templates whose `main` file imports a host dependency — the planner templates and `sequential-reviewer` import [Zod](https://zod.dev) for their structured-output schemas — prompt you to install it with that package manager when it isn't already in your `package.json`, so the first `npx tsx .sandcastle/main.ts` doesn't fail with `ERR_MODULE_NOT_FOUND`.
+
+The `sequential-reviewer` template uses fixed roles — Claude Code implements, Codex reviews — so it **ignores `--agent`** (with a printed note), ships its own dual-CLI Dockerfile/Containerfile, authenticates Codex from your host `~/.codex` cache (run `codex` and sign in first), and requires the GitHub Issues tracker.
 
 Every interactive prompt has a paired `--flag` so the entire init can run non-interactively (e.g. in CI or a scripted setup). When stdin is not a TTY and a required flag is missing, init fails fast with a clear error rather than wedging on a prompt.
 
-| Option                    | Required | Default                      | Description                                                                                                    |
-| ------------------------- | -------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `--image-name`            | No       | `sandcastle:<repo-dir-name>` | Docker image name                                                                                              |
-| `--agent`                 | No       | Interactive prompt           | Agent to use (`claude-code`, `pi`, `codex`, `cursor`, `opencode`, `copilot`)                                   |
-| `--model`                 | No       | Agent's default model        | Model to use (e.g. `claude-sonnet-4-6`). Defaults to agent's default                                           |
-| `--sandbox`               | No       | Interactive prompt           | Sandbox provider to use (`docker`, `podman`)                                                                   |
-| `--template`              | No       | Interactive prompt           | Template to scaffold (e.g. `blank`, `simple-loop`)                                                             |
-| `--issue-tracker`         | No       | Interactive prompt           | Issue tracker to use (`github-issues`, `beads`, `custom`)                                                      |
-| `--create-label`          | No       | Interactive prompt           | `true` / `false` — whether to create the `Sandcastle` GitHub label (only with `--issue-tracker github-issues`) |
-| `--build-image`           | No       | Interactive prompt           | `true` / `false` — whether to build the sandbox image now (silently ignored with `--issue-tracker custom`)     |
-| `--install-template-deps` | No       | Interactive prompt           | `true` / `false` — whether to install template host deps (e.g. `zod` for the planner templates)                |
+| Option                    | Required | Default                      | Description                                                                                                                  |
+| ------------------------- | -------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `--image-name`            | No       | `sandcastle:<repo-dir-name>` | Docker image name                                                                                                            |
+| `--agent`                 | No       | Interactive prompt           | Agent to use (`claude-code`, `pi`, `codex`, `cursor`, `opencode`, `copilot`). Ignored by `sequential-reviewer` (fixed roles) |
+| `--model`                 | No       | Agent's default model        | Model to use (e.g. `claude-sonnet-4-6`). Defaults to agent's default                                                         |
+| `--sandbox`               | No       | Interactive prompt           | Sandbox provider to use (`docker`, `podman`)                                                                                 |
+| `--template`              | No       | Interactive prompt           | Template to scaffold (e.g. `blank`, `simple-loop`)                                                                           |
+| `--issue-tracker`         | No       | Interactive prompt           | Issue tracker to use (`github-issues`, `beads`, `custom`)                                                                    |
+| `--create-label`          | No       | Interactive prompt           | `true` / `false` — whether to create the `Sandcastle` GitHub label (only with `--issue-tracker github-issues`)               |
+| `--build-image`           | No       | Interactive prompt           | `true` / `false` — whether to build the sandbox image now (silently ignored with `--issue-tracker custom`)                   |
+| `--install-template-deps` | No       | Interactive prompt           | `true` / `false` — whether to install template host deps (e.g. `zod` for the planner and `sequential-reviewer` templates)    |
 
 Creates the following files:
 

@@ -1,55 +1,62 @@
-# TASK
+# Task
 
-Review the code changes on branch `{{BRANCH}}` and improve code clarity, consistency, and maintainability while preserving exact functionality.
+Review the implementation of task {{TASK_ID}}: {{ISSUE_TITLE}} on branch
+{{BRANCH}}.
 
-# CONTEXT
+This is review round {{REVIEW_ROUND}}. On later rounds, focus on whether your
+earlier findings were addressed and whether the fixes introduced new problems.
 
-## Branch diff
+You are the **reviewer**. You have full read access to the whole repo, but you
+MUST NOT modify it. Report findings; the implementer applies any fixes.
 
-!`git diff {{TARGET_BRANCH}}...{{BRANCH}}`
+# Context
+
+## Branch diff (against {{BASE_REF}})
+
+!`git diff {{BASE_REF}}...{{BRANCH}}`
 
 ## Commits on this branch
 
-!`git log {{TARGET_BRANCH}}..{{BRANCH}} --oneline`
+!`git log {{BASE_REF}}..{{BRANCH}} --oneline`
 
-# REVIEW PROCESS
+## Working tree status
 
-1. **Understand the change**: Read the diff and commits above to understand the intent.
+!`git status --porcelain`
 
-2. **Analyze for improvements**: Look for opportunities to:
-   - Reduce unnecessary complexity and nesting
-   - Eliminate redundant code and abstractions
-   - Improve readability through clear variable and function names
-   - Consolidate related logic
-   - Remove unnecessary comments that describe obvious code
-   - Avoid nested ternary operators - prefer switch statements or if/else chains
-   - Choose clarity over brevity - explicit code is often better than overly compact code
+## Project coding standards
 
-3. **Check correctness**:
-   - Does the implementation match the intent? Are edge cases handled?
-   - Are new/changed behaviours covered by tests?
-   - Are there unsafe casts, `any` types, or unchecked assumptions?
-   - Does the change introduce injection vulnerabilities, credential leaks, or other security issues?
+!`cat .sandcastle/CODING_STANDARDS.md`
 
-4. **Maintain balance**: Avoid over-simplification that could:
-   - Reduce code clarity or maintainability
-   - Create overly clever solutions that are hard to understand
-   - Combine too many concerns into single functions or components
-   - Remove helpful abstractions that improve code organization
-   - Make the code harder to debug or extend
+# Review process
 
-5. **Apply project standards**: Follow the coding standards defined in @.sandcastle/CODING_STANDARDS.md
+Read the diff and the surrounding code. Assess:
 
-6. **Preserve functionality**: Never change what the code does - only how it does it. All original features, outputs, and behaviors must remain intact.
+- **correctness** — does it do what the task asks? Edge cases handled?
+- **tests** — are new/changed behaviours covered?
+- **security** — injection, credential leaks, unsafe casts?
+- **maintainability** — clarity, naming, unnecessary complexity?
+- **docs** — are user-facing changes documented where needed?
+- **product** — does it actually satisfy the task's intent?
 
-# EXECUTION
+For each finding, record a `status` (`approved` or `changes_requested`), a
+`severity` (`blocking` or `non_blocking`), and a `category`.
 
-If you find improvements to make:
+# Hard rules
 
-1. Make the changes directly on this branch
-2. Run tests and type checking to ensure nothing is broken
-3. Commit describing the refinements
+- Do NOT edit, create, or delete files.
+- Do NOT run any command that mutates the repo or its git state.
+- Do NOT commit, close, label, or comment on the task.
+- Your ONLY output is the structured `<review>` block below.
 
-If the code is already clean and well-structured, do nothing.
+# Output
 
-Once complete, output <promise>COMPLETE</promise>.
+Emit the review as JSON inside `<review>` tags. Set `verdict` to `approved`
+only when every item's `status` is `approved` — an empty item list is NOT
+approval. Always include at least one item. Provide an `issueCommentMarkdown`
+field: a Markdown summary of the review suitable for posting to the task thread.
+
+<review>
+{"taskId":"{{TASK_ID}}","verdict":"changes_requested","items":[{"status":"changes_requested","severity":"blocking","category":"correctness","file":"src/foo.ts","line":42,"summary":"Off-by-one in the loop bound","rationale":"Iterates one past the end, dropping the last element.","suggestedFix":"Use <= length - 1 or < length."}],"issueCommentMarkdown":"## Review\n\nRequested changes — see the off-by-one in `src/foo.ts`."}
+</review>
+
+Always emit the `<review>` tags.

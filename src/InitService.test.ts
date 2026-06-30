@@ -434,7 +434,7 @@ describe("InitService scaffold", () => {
       expect(mainTs).not.toContain("merge-to-head");
     });
 
-    it("main.mts only reviews when implementer produces commits", async () => {
+    it("main.mts only reviews when the branch has reviewable commits", async () => {
       const dir = await makeDir();
       await runScaffold(dir, { templateName: "sequential-reviewer" });
 
@@ -442,37 +442,57 @@ describe("InitService scaffold", () => {
         join(dir, ".sandcastle", "main.mts"),
         "utf-8",
       );
-      expect(mainTs).toContain("implement.commits.length");
+      // Counts commits the branch carries ahead of the host branch — so a
+      // reused deterministic branch is reviewed even when this round adds none.
+      expect(mainTs).toContain("git rev-list --count");
+      expect(mainTs).toContain("reviewableCommits");
     });
 
-    it("implement-prompt.md contains issue selection and closure, not prompt argument placeholders", async () => {
+    it("main.mts derives and validates the deterministic task branch", async () => {
+      const dir = await makeDir();
+      await runScaffold(dir, { templateName: "sequential-reviewer" });
+
+      const mainTs = await readFile(
+        join(dir, ".sandcastle", "main.mts"),
+        "utf-8",
+      );
+      // The branch is derived from the task id, not trusted from the selector.
+      expect(mainTs).toContain("const branch = `sandcastle/issue-${task.id}`");
+      expect(mainTs).toContain("task.branch !== branch");
+      // createSandbox uses the derived branch, never the raw selector value.
+      expect(mainTs).not.toContain("branch: task.branch");
+    });
+
+    it("implement-prompt.md works a single selected task and defers selection and closure", async () => {
       const dir = await makeDir();
       await runScaffold(dir, { templateName: "sequential-reviewer" });
 
       const prompt = await readFile(
         join(dir, ".sandcastle", "implement-prompt.md"),
+        "utf-8",
+      );
+      // It works the task handed to it by the selector, via runtime args.
+      expect(prompt).toContain("{{TASK_ID}}");
+      expect(prompt).toContain("{{ISSUE_TITLE}}");
+      expect(prompt).toContain("{{BRANCH}}");
+      // Selection (list) and closure happen in other phases — not here.
+      expect(prompt).not.toContain("gh issue list");
+      expect(prompt).not.toContain("gh issue close");
+      // It does view the task it was given.
+      expect(prompt).toContain("gh issue view");
+    });
+
+    it("select-task-prompt.md hints the task list is pre-filtered and discourages unfiltered re-query", async () => {
+      const dir = await makeDir();
+      await runScaffold(dir, { templateName: "sequential-reviewer" });
+
+      const prompt = await readFile(
+        join(dir, ".sandcastle", "select-task-prompt.md"),
         "utf-8",
       );
       expect(prompt).toContain("gh issue list");
-      expect(prompt).toContain("gh issue close");
-      expect(prompt).not.toContain("{{ISSUE_NUMBER}}");
-      expect(prompt).not.toContain("{{ISSUE_TITLE}}");
-      expect(prompt).not.toContain("{{BRANCH}}");
-    });
-
-    it("implement-prompt.md hints the issue list is pre-filtered and discourages unfiltered re-query", async () => {
-      const dir = await makeDir();
-      await runScaffold(dir, { templateName: "sequential-reviewer" });
-
-      const prompt = await readFile(
-        join(dir, ".sandcastle", "implement-prompt.md"),
-        "utf-8",
-      );
-      expect(prompt).toContain(
-        "already been filtered to issues ready for work",
-      );
-      expect(prompt).toContain("sole source of truth");
-      expect(prompt).toContain("Do not run your own unfiltered query");
+      expect(prompt).toContain("ready for work");
+      expect(prompt).toContain("source of truth");
     });
 
     it("review-prompt.md contains {{BRANCH}} prompt argument", async () => {
@@ -506,7 +526,7 @@ describe("InitService scaffold", () => {
       expect(standards).toContain("Customize");
     });
 
-    it("review-prompt.md references @.sandcastle/CODING_STANDARDS.md", async () => {
+    it("review-prompt.md pulls in CODING_STANDARDS.md via shell expansion (agent-agnostic)", async () => {
       const dir = await makeDir();
       await runScaffold(dir, { templateName: "sequential-reviewer" });
 
@@ -514,10 +534,13 @@ describe("InitService scaffold", () => {
         join(dir, ".sandcastle", "review-prompt.md"),
         "utf-8",
       );
-      expect(prompt).toContain("@.sandcastle/CODING_STANDARDS.md");
+      // The reviewer may be Codex, which does not resolve Claude's @-mentions,
+      // so the standards are inlined via a sandbox shell expression instead.
+      expect(prompt).toContain("cat .sandcastle/CODING_STANDARDS.md");
+      expect(prompt).not.toContain("@.sandcastle/CODING_STANDARDS.md");
     });
 
-    it("review-prompt.md diffs against {{TARGET_BRANCH}} (the fork point), not the branch itself", async () => {
+    it("review-prompt.md diffs against {{BASE_REF}} (the frozen fork point), not the branch itself", async () => {
       const dir = await makeDir();
       await runScaffold(dir, { templateName: "sequential-reviewer" });
 
@@ -525,13 +548,35 @@ describe("InitService scaffold", () => {
         join(dir, ".sandcastle", "review-prompt.md"),
         "utf-8",
       );
-      expect(prompt).toContain("git diff {{TARGET_BRANCH}}...{{BRANCH}}");
-      expect(prompt).toContain("git log {{TARGET_BRANCH}}..{{BRANCH}}");
+      expect(prompt).toContain("git diff {{BASE_REF}}...{{BRANCH}}");
+      expect(prompt).toContain("git log {{BASE_REF}}..{{BRANCH}}");
+      // The base is pinned to the immutable SHA captured once at startup (passed
+      // as BASE_REF from main.mts), NOT the built-in {{TARGET_BRANCH}}, which
+      // createSandbox recomputes from the host's current branch on every run()
+      // and so can drift mid-run away from the commits the gate counted against.
+      expect(prompt).not.toContain("{{TARGET_BRANCH}}");
       // SOURCE_BRANCH equals BRANCH at run time, so diffing against it is
-      // always empty — the prompt must use TARGET_BRANCH instead.
+      // always empty — the prompt must use BASE_REF instead.
       expect(prompt).not.toContain("{{SOURCE_BRANCH}}");
       expect(prompt).not.toContain("git diff main");
       expect(prompt).not.toContain("git log main");
+    });
+
+    it("main.mts pins the diff base to an immutable HEAD SHA, not a branch name", async () => {
+      const dir = await makeDir();
+      await runScaffold(dir, { templateName: "sequential-reviewer" });
+
+      const mainTs = await readFile(
+        join(dir, ".sandcastle", "main.mts"),
+        "utf-8",
+      );
+      // Capture an immutable SHA (rev-parse HEAD), not a moving branch name.
+      expect(mainTs).toContain('["rev-parse", "HEAD"]');
+      expect(mainTs).not.toContain('"--abbrev-ref"');
+      // Wire that SHA into the reviewer prompt, the fork point, and the gate count.
+      expect(mainTs).toContain("BASE_REF: baseRef");
+      expect(mainTs).toContain("baseBranch: baseRef");
+      expect(mainTs).toContain("git rev-list --count ${baseRef}..HEAD");
     });
 
     it("main.mts runs the implementer for a single iteration (one issue per outer pass)", async () => {
@@ -550,7 +595,7 @@ describe("InitService scaffold", () => {
       expect(implementerSection).not.toContain("maxIterations: 100");
     });
 
-    it("main.mts stops the loop when the implementer produces no commits", async () => {
+    it("main.mts stops when the branch has no reviewable commits", async () => {
       const dir = await makeDir();
       await runScaffold(dir, { templateName: "sequential-reviewer" });
 
@@ -558,10 +603,10 @@ describe("InitService scaffold", () => {
         join(dir, ".sandcastle", "main.mts"),
         "utf-8",
       );
-      const noCommitIndex = mainTs.indexOf("!implement.commits.length");
-      const section = mainTs.slice(noCommitIndex, noCommitIndex + 400);
+      const idx = mainTs.indexOf("reviewableCommits === 0");
+      expect(idx).toBeGreaterThan(-1);
+      const section = mainTs.slice(idx, idx + 300);
       expect(section).toContain("break");
-      expect(section).not.toContain("continue");
     });
   });
 
@@ -915,7 +960,7 @@ describe("InitService scaffold", () => {
     expect(prompt).toContain("gh issue list");
   });
 
-  it("sequential-reviewer implement-prompt.md strips --label Sandcastle when createLabel is false", async () => {
+  it("sequential-reviewer select-task-prompt.md strips --label Sandcastle when createLabel is false", async () => {
     const dir = await makeDir();
     await runScaffold(dir, {
       templateName: "sequential-reviewer",
@@ -923,7 +968,7 @@ describe("InitService scaffold", () => {
     });
 
     const prompt = await readFile(
-      join(dir, ".sandcastle", "implement-prompt.md"),
+      join(dir, ".sandcastle", "select-task-prompt.md"),
       "utf-8",
     );
     expect(prompt).not.toContain("--label Sandcastle");
@@ -938,7 +983,8 @@ describe("InitService scaffold", () => {
     // causing PromptArgumentSubstitution to throw on every iteration.
     const cases: Array<{ template: string; file: string }> = [
       { template: "simple-loop", file: "prompt.md" },
-      { template: "sequential-reviewer", file: "implement-prompt.md" },
+      // sequential-reviewer's selector runs with no runtime promptArgs.
+      { template: "sequential-reviewer", file: "select-task-prompt.md" },
       { template: "parallel-planner", file: "merge-prompt.md" },
       { template: "parallel-planner-with-review", file: "merge-prompt.md" },
     ];
@@ -1670,42 +1716,40 @@ describe("InitService scaffold", () => {
 
     // --- sequential-reviewer ---
 
-    it("sequential-reviewer with github-issues produces implement-prompt with gh issue commands", async () => {
+    it("sequential-reviewer with github-issues substitutes gh issue commands into the right prompts", async () => {
       const dir = await makeDir();
       await runScaffold(dir, {
         templateName: "sequential-reviewer",
         issueTracker: getIssueTracker("github-issues"),
       });
+      const read = (f: string) =>
+        readFile(join(dir, ".sandcastle", f), "utf-8");
 
-      const prompt = await readFile(
-        join(dir, ".sandcastle", "implement-prompt.md"),
-        "utf-8",
-      );
-      expect(prompt).toContain("gh issue list");
-      expect(prompt).toContain("labels");
-      expect(prompt).toContain("comments");
-      expect(prompt).toContain("gh issue close");
-      expect(prompt).not.toContain("{{LIST_TASKS_COMMAND}}");
-      expect(prompt).not.toContain("{{CLOSE_TASK_COMMAND}}");
+      // LIST → selector; VIEW → implementer; CLOSE → closer.
+      const select = await read("select-task-prompt.md");
+      expect(select).toContain("gh issue list");
+      expect(select).toContain("labels");
+      expect(select).toContain("comments");
+      expect(select).not.toContain("{{LIST_TASKS_COMMAND}}");
+
+      const implement = await read("implement-prompt.md");
+      expect(implement).toContain("gh issue view");
+
+      const close = await read("close-prompt.md");
+      expect(close).toContain("gh issue close");
+      expect(close).not.toContain("{{CLOSE_TASK_COMMAND}}");
     });
 
-    it("sequential-reviewer with beads produces implement-prompt with bd commands", async () => {
+    it("sequential-reviewer rejects beads (no comment support)", async () => {
       const dir = await makeDir();
-      await runScaffold(dir, {
-        templateName: "sequential-reviewer",
-        issueTracker: getIssueTracker("beads"),
-      });
-
-      const prompt = await readFile(
-        join(dir, ".sandcastle", "implement-prompt.md"),
-        "utf-8",
+      await expect(
+        runScaffold(dir, {
+          templateName: "sequential-reviewer",
+          issueTracker: getIssueTracker("beads"),
+        }),
+      ).rejects.toThrow(
+        /requires an issue tracker that supports posting comments/,
       );
-      expect(prompt).toContain("bd ready --json");
-      expect(prompt).toContain("bd close");
-      expect(prompt).not.toContain("gh issue list");
-      expect(prompt).not.toContain("gh issue close");
-      expect(prompt).not.toContain("{{LIST_TASKS_COMMAND}}");
-      expect(prompt).not.toContain("{{CLOSE_TASK_COMMAND}}");
     });
 
     it("sequential-reviewer implement-prompt uses backlog-agnostic language", async () => {
@@ -2386,5 +2430,291 @@ describe("InitService scaffold", () => {
       );
       expect(mainTs).toContain("sandbox: docker()");
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Fixed-role scaffold (sequential-reviewer): Claude Code implements, Codex reviews
+// ---------------------------------------------------------------------------
+
+describe("InitService scaffold — sequential-reviewer (fixed-role)", () => {
+  const seqReviewer = { templateName: "sequential-reviewer" } as const;
+
+  it("scaffolds the template-owned Dockerfile with both Claude Code and Codex installs", async () => {
+    const dir = await makeDir();
+    await runScaffold(dir, seqReviewer);
+
+    const dockerfile = await readFile(
+      join(dir, ".sandcastle", "Dockerfile"),
+      "utf-8",
+    );
+    // Claude Code (implementer) and Codex (reviewer) CLIs both installed.
+    expect(dockerfile).toContain("https://claude.ai/install.sh");
+    expect(dockerfile).toContain("npm install -g @openai/codex");
+    // Issue-tracker tools substituted (GitHub CLI by default), no leftover placeholder.
+    expect(dockerfile).toContain("GitHub CLI");
+    expect(dockerfile).not.toContain("{{ISSUE_TRACKER_TOOLS}}");
+  });
+
+  it("ignores --agent: forces Claude env + dual-CLI Dockerfile even when codex is selected", async () => {
+    const dir = await makeDir();
+    await runScaffold(dir, {
+      ...seqReviewer,
+      agent: codexAgent,
+      model: codexAgent.defaultModel,
+    });
+
+    // .env.example is the implementer's (Claude Code), never the selected codex.
+    const envExample = await readFile(
+      join(dir, ".sandcastle", ".env.example"),
+      "utf-8",
+    );
+    expect(envExample).toContain("CLAUDE_CODE_OAUTH_TOKEN=");
+    expect(envExample).not.toContain("OPENAI_KEY=");
+    expect(envExample).not.toContain("CODEX_API_KEY=");
+    expect(envExample).not.toContain("CODEX_ACCESS_TOKEN=");
+
+    // Dockerfile still comes from the template (both CLIs), not the codex
+    // AGENT_REGISTRY single-CLI template.
+    const dockerfile = await readFile(
+      join(dir, ".sandcastle", "Dockerfile"),
+      "utf-8",
+    );
+    expect(dockerfile).toContain("https://claude.ai/install.sh");
+    expect(dockerfile).toContain("npm install -g @openai/codex");
+  });
+
+  it("ships a main.mts that references both roles, mounts ~/.codex, and is not rewritten", async () => {
+    const dir = await makeDir();
+    await runScaffold(dir, {
+      ...seqReviewer,
+      // Even with a non-claude agent/model, the roles + models stay as authored.
+      agent: codexAgent,
+      model: codexAgent.defaultModel,
+    });
+
+    const mainTs = await readFile(
+      join(dir, ".sandcastle", "main.mts"),
+      "utf-8",
+    );
+    // Both role factories present; claudeCode was NOT globally replaced by codex.
+    expect(mainTs).toContain("sandcastle.claudeCode(IMPLEMENTER_MODEL)");
+    expect(mainTs).toContain("sandcastle.codex(REVIEWER_MODEL)");
+    // Authored models preserved (no model rewrite).
+    expect(mainTs).toContain('const IMPLEMENTER_MODEL = "claude-sonnet-4-6"');
+    expect(mainTs).toContain('const REVIEWER_MODEL = "gpt-5.4"');
+    // Codex auth mount configured.
+    expect(mainTs).toContain('hostPath: "~/.codex"');
+    expect(mainTs).toContain('sandboxPath: "~/.codex"');
+  });
+
+  it("scaffolds the selector, implement, review, and close prompt files", async () => {
+    const dir = await makeDir();
+    await runScaffold(dir, seqReviewer);
+
+    for (const f of [
+      "select-task-prompt.md",
+      "implement-prompt.md",
+      "review-prompt.md",
+      "fix-prompt.md",
+      "comment-prompt.md",
+      "close-prompt.md",
+      "CODING_STANDARDS.md",
+    ]) {
+      const content = await readFile(join(dir, ".sandcastle", f), "utf-8");
+      expect(content.length).toBeGreaterThan(0);
+    }
+
+    // Structured-output tags present so run()'s tag-in-prompt check passes.
+    const selectPrompt = await readFile(
+      join(dir, ".sandcastle", "select-task-prompt.md"),
+      "utf-8",
+    );
+    expect(selectPrompt).toContain("<task-selection>");
+    const reviewPrompt = await readFile(
+      join(dir, ".sandcastle", "review-prompt.md"),
+      "utf-8",
+    );
+    expect(reviewPrompt).toContain("<review>");
+  });
+
+  it("resolves issue-tracker scaffold args in the prompts (no leftover scaffold placeholders)", async () => {
+    const dir = await makeDir();
+    await runScaffold(dir, seqReviewer);
+
+    const scaffoldKeys = [
+      "{{LIST_TASKS_COMMAND}}",
+      "{{VIEW_TASK_COMMAND}}",
+      "{{CLOSE_TASK_COMMAND}}",
+      "{{COMMENT_TASK_COMMAND}}",
+      "{{ISSUE_TRACKER_TOOLS}}",
+    ];
+    for (const f of [
+      "select-task-prompt.md",
+      "implement-prompt.md",
+      "review-prompt.md",
+      "fix-prompt.md",
+      "comment-prompt.md",
+      "close-prompt.md",
+      "Dockerfile",
+    ]) {
+      const content = await readFile(join(dir, ".sandcastle", f), "utf-8");
+      for (const key of scaffoldKeys) {
+        expect(content).not.toContain(key);
+      }
+    }
+  });
+
+  it("posts the reviewer-authored comment via the implementer, not the reviewer", async () => {
+    const dir = await makeDir();
+    await runScaffold(dir, seqReviewer);
+
+    // GitHub Issues defines COMMENT_TASK_COMMAND; the comment prompt uses it.
+    const commentPrompt = await readFile(
+      join(dir, ".sandcastle", "comment-prompt.md"),
+      "utf-8",
+    );
+    expect(commentPrompt).toContain("gh issue comment");
+    expect(commentPrompt).toContain("--body-file");
+    expect(commentPrompt).toContain("{{TASK_ID}}");
+    expect(commentPrompt).toContain("{{COMMENT_FILE}}");
+    expect(commentPrompt).toContain("Do NOT modify any code");
+
+    // The reviewer is explicitly told not to comment on the task.
+    const reviewPrompt = await readFile(
+      join(dir, ".sandcastle", "review-prompt.md"),
+      "utf-8",
+    );
+    expect(reviewPrompt).toContain("comment");
+    expect(reviewPrompt).not.toContain("gh issue comment");
+
+    // main.mts writes the body under the gitignored logs path and posts it.
+    const mainTs = await readFile(
+      join(dir, ".sandcastle", "main.mts"),
+      "utf-8",
+    );
+    expect(mainTs).toContain(".sandcastle/logs/review-comments/");
+    expect(mainTs).toContain("issueCommentMarkdown");
+    expect(mainTs).toContain("comment-prompt.md");
+  });
+
+  it("COMMENT_TASK_COMMAND is defined for GitHub Issues and omitted by other trackers", () => {
+    expect(
+      getIssueTracker("github-issues")!.templateArgs.COMMENT_TASK_COMMAND,
+    ).toBe("gh issue comment <ID> --body-file <FILE>");
+    expect(
+      getIssueTracker("beads")!.templateArgs.COMMENT_TASK_COMMAND,
+    ).toBeUndefined();
+    expect(
+      getIssueTracker("custom")!.templateArgs.COMMENT_TASK_COMMAND,
+    ).toBeUndefined();
+  });
+
+  it("rejects a non-GitHub issue tracker for this template", async () => {
+    const dir = await makeDir();
+    await expect(
+      runScaffold(dir, {
+        ...seqReviewer,
+        issueTracker: getIssueTracker("beads"),
+      }),
+    ).rejects.toThrow(
+      /requires an issue tracker that supports posting comments/,
+    );
+
+    // Nothing was scaffolded on disk.
+    const { access } = await import("node:fs/promises");
+    await expect(access(join(dir, ".sandcastle"))).rejects.toBeDefined();
+  });
+
+  it("main.mts drives a bounded review/fix loop with fresh fix rounds", async () => {
+    const dir = await makeDir();
+    await runScaffold(dir, seqReviewer);
+
+    const mainTs = await readFile(
+      join(dir, ".sandcastle", "main.mts"),
+      "utf-8",
+    );
+
+    // Bounded review loop.
+    expect(mainTs).toContain("const MAX_REVIEW_ROUNDS = 3");
+    expect(mainTs).toContain("round <= MAX_REVIEW_ROUNDS");
+    // The reviewer re-checks each round and the fixer addresses findings.
+    expect(mainTs).toContain("review-prompt.md");
+    expect(mainTs).toContain("fix-prompt.md");
+    // Fresh fix round — findings injected via promptArgs, no .resume().
+    expect(mainTs).toContain("REVIEW_FINDINGS");
+    expect(mainTs).toContain('status === "changes_requested"');
+    expect(mainTs).not.toContain(".resume(");
+    // Non-convergence stops the workflow and preserves the branch.
+    expect(mainTs).toContain("did not pass review within");
+  });
+
+  it("main.mts guards the reviewer against mutating the task worktree", async () => {
+    const dir = await makeDir();
+    await runScaffold(dir, seqReviewer);
+
+    const mainTs = await readFile(
+      join(dir, ".sandcastle", "main.mts"),
+      "utf-8",
+    );
+
+    // Snapshots HEAD + working tree around the reviewer run.
+    expect(mainTs).toContain("git rev-parse HEAD");
+    expect(mainTs).toContain("git status --porcelain");
+    // Fails when the reviewer commits or changes HEAD / the working tree.
+    expect(mainTs).toContain("review.commits.length > 0");
+    expect(mainTs).toContain("must be read-only");
+  });
+
+  it("fix-prompt.md fixes only requested findings and defers closure", async () => {
+    const dir = await makeDir();
+    await runScaffold(dir, seqReviewer);
+
+    const fixPrompt = await readFile(
+      join(dir, ".sandcastle", "fix-prompt.md"),
+      "utf-8",
+    );
+    expect(fixPrompt).toContain("{{REVIEW_FINDINGS}}");
+    expect(fixPrompt).toContain("{{TASK_ID}}");
+    expect(fixPrompt).toContain("{{BRANCH}}");
+    expect(fixPrompt).toContain("Fix ONLY the requested findings");
+    expect(fixPrompt).toContain("Do NOT close the task");
+  });
+
+  it("uses the template's own Containerfile for podman (both CLIs)", async () => {
+    const dir = await makeDir();
+    await runScaffold(dir, {
+      ...seqReviewer,
+      sandboxProvider: getSandboxProvider("podman"),
+    });
+
+    const containerfile = await readFile(
+      join(dir, ".sandcastle", "Containerfile"),
+      "utf-8",
+    );
+    expect(containerfile).toContain("https://claude.ai/install.sh");
+    expect(containerfile).toContain("npm install -g @openai/codex");
+
+    // main.mts rewritten docker -> podman.
+    const mainTs = await readFile(
+      join(dir, ".sandcastle", "main.mts"),
+      "utf-8",
+    );
+    expect(mainTs).toContain('from "@ai-hero/sandcastle/sandboxes/podman"');
+    expect(mainTs).toContain("podman({ mounts: [codexAuthMount] })");
+    expect(mainTs).not.toContain("docker(");
+  });
+
+  it("next steps mention the host ~/.codex precondition", () => {
+    const lines = getNextStepsLines(
+      "sequential-reviewer",
+      "main.mts",
+      getIssueTracker("github-issues")!,
+      claudeCodeAgent,
+      "npm",
+    );
+    const joined = lines.join("\n");
+    expect(joined).toContain("~/.codex");
+    expect(joined.toLowerCase()).toContain("codex");
   });
 });

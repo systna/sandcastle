@@ -1,0 +1,8 @@
+---
+"@ai-hero/sandcastle": minor
+---
+
+Add structured output to the reusable `sandbox.run()` path and strengthen the `sequential-reviewer` template into a quality gate.
+
+- `sandbox.run({ output })` now accepts `Output.object(...)` / `Output.string(...)` with the same semantics as top-level `run()` (typed return, `maxIterations === 1`, tag-in-prompt check, `StructuredOutputError`, and `maxRetries` for resumable providers).
+- The `sequential-reviewer` template is now a fixed two-role workflow: Claude Code implements, Codex reviews (read-only). A selector picks one task, the implementer commits, and a structured reviewer gate must approve before the task closes — with a bounded implement→review→fix loop, a reviewer non-mutation guard, and a GitHub Issue comment audit trail. The scaffold ships its own dual-CLI Dockerfile, mounts the host `~/.codex` cache for the reviewer, ignores `--agent`, and requires the GitHub Issues tracker. The selected task id is constrained to a numeric GitHub issue number so it can never carry shell metacharacters into the reviewer's prompt shell blocks; the review verdict's `taskId` must match the selected task before any comment or close; the comment and close phases run under the same non-mutation guard as the reviewer so no unreviewed code can land after the gate; and the diff base is an immutable HEAD SHA captured once at startup — used as the task branches' fork point, the reviewer's `git diff`/`git log` base (passed as `BASE_REF`), and the gate's commit count — rather than the built-in `TARGET_BRANCH` (a branch name recomputed per run), so commits landing on the host branch mid-run can't desync the review from the work the gate counted.

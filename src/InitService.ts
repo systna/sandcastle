@@ -27,6 +27,15 @@ export interface TemplateMetadata {
    * `npx tsx .sandcastle/main.ts` doesn't crash with ERR_MODULE_NOT_FOUND.
    */
   dependencies?: readonly string[];
+  /**
+   * Opt a template out of the default single-agent scaffold. `"fixed-role"`
+   * templates own their `Dockerfile`/`Containerfile` and ship a `main.mts` with
+   * hard-coded role agents, so init does NOT write the `AGENT_REGISTRY`
+   * Dockerfile, does NOT rewrite the agent factory/model in `main.mts`, and
+   * generates `.env.example` for the implementer role (Claude Code) only. The
+   * selected `--agent` is ignored for these templates.
+   */
+  scaffoldStrategy?: "fixed-role";
 }
 
 const TEMPLATES: TemplateMetadata[] = [
@@ -41,7 +50,9 @@ const TEMPLATES: TemplateMetadata[] = [
   {
     name: "sequential-reviewer",
     description:
-      "Implements issues one by one, with a code review step after each",
+      "Implements issues one by one with a structured reviewer gate before closure",
+    dependencies: ["zod"],
+    scaffoldStrategy: "fixed-role",
   },
   {
     name: "parallel-planner",
@@ -489,6 +500,13 @@ export interface IssueTrackerEntry {
     readonly VIEW_TASK_COMMAND: string;
     readonly CLOSE_TASK_COMMAND: string;
     readonly ISSUE_TRACKER_TOOLS: string;
+    /**
+     * Command to post a comment on a task from a file, in
+     * `<command> <ID> ... <FILE>` form. Optional — only trackers that support a
+     * review audit trail define it. Templates that require it (e.g.
+     * `sequential-reviewer`) reject trackers that omit it at scaffold time.
+     */
+    readonly COMMENT_TASK_COMMAND?: string;
   };
   /** Lines to append to `.env.example` for this issue tracker, or empty string if none needed. */
   readonly envExample: string;
@@ -536,6 +554,7 @@ const ISSUE_TRACKER_REGISTRY: IssueTrackerEntry[] = [
       VIEW_TASK_COMMAND: "gh issue view <ID>",
       CLOSE_TASK_COMMAND: `gh issue close <ID> --comment "Completed by Sandcastle"`,
       ISSUE_TRACKER_TOOLS: GITHUB_CLI_TOOLS,
+      COMMENT_TASK_COMMAND: "gh issue comment <ID> --body-file <FILE>",
     },
     envExample: `# GitHub personal access token — the agent uses it to read and manage GitHub Issues
 # Create a fine-grained token: https://github.com/settings/personal-access-tokens/new
@@ -659,7 +678,8 @@ export function getNextStepsLines(
     return lines;
   } else {
     const hasReviewer = template.includes("review");
-    const usesPlanSchema = getTemplateDependencies(template).includes("zod");
+    const usesSchemaValidator =
+      getTemplateDependencies(template).includes("zod");
     let step = 1;
     const lines: string[] = [
       "Next steps:",
@@ -670,13 +690,18 @@ export function getNextStepsLines(
         "   To use your Claude subscription instead of an API key, run `claude setup-token` on your host and paste the result into CLAUDE_CODE_OAUTH_TOKEN.",
       );
     }
+    if (template === "sequential-reviewer") {
+      lines.push(
+        `${step++}. This template uses fixed roles: Claude Code implements, Codex reviews. The reviewer authenticates from your host \`~/.codex\` cache (no API key) — run \`codex\` on your host and sign in first so \`~/.codex\` exists, or the sandbox mount fails fast.`,
+      );
+    }
     lines.push(
       `${step++}. Add "sandcastle": "npx tsx .sandcastle/${mainFilename}" to your package.json scripts`,
       `${step++}. Templates use \`copyToWorktree: ["node_modules"]\` to copy your host node_modules into the sandbox for fast startup — the \`npm install\` in the onSandboxReady hook is a safety net for platform-specific binaries. Adjust both if you use a different package manager`,
     );
-    if (usesPlanSchema) {
+    if (usesSchemaValidator) {
       lines.push(
-        `${step++}. Install a schema validator for the planner's \`<plan>\` output — the template uses Zod (\`${addDependencyCommand(packageManager, "zod")}\`), but Valibot, ArkType, or any Standard Schema library works (https://standardschema.dev)`,
+        `${step++}. Install a schema validator for the template's structured output — it uses Zod (\`${addDependencyCommand(packageManager, "zod")}\`), but Valibot, ArkType, or any Standard Schema library works (https://standardschema.dev)`,
       );
     }
     lines.push(
@@ -742,6 +767,12 @@ const copyTemplateFiles = (
           (f) =>
             f !== "template.json" &&
             f !== ".env.example" &&
+            // Container build files are written/copied by scaffold() itself —
+            // either from AGENT_REGISTRY (default) or from a fixed-role
+            // template's own Dockerfile. Never copy them through the generic
+            // pass, which would duplicate them or land the wrong filename.
+            f !== "Dockerfile" &&
+            f !== "Containerfile" &&
             !COMPILED_FILE_EXTENSIONS.some((ext) => f.endsWith(ext)),
         )
         .map((f) => {
@@ -767,6 +798,13 @@ const rewriteMainTs = (
   model: string,
   sandboxProvider: SandboxProviderEntry,
   mainFilename: string,
+  /**
+   * Fixed-role templates hard-code their role agents (e.g. Claude Code
+   * implementer + Codex reviewer), so the agent-factory and model rewrites must
+   * be skipped — they would mangle the second role and mis-assign the single
+   * `--model`. Only the filename and sandbox-provider rewrites still apply.
+   */
+  skipAgentRewrite = false,
 ): Effect.Effect<void, Error, FileSystem.FileSystem> =>
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
@@ -787,19 +825,21 @@ const rewriteMainTs = (
       content = content.replace(/main\.mts/g, "main.ts");
     }
 
-    // Replace factory function name in imports (e.g. claudeCode → pi)
-    // and all factory calls with the correct model.
-    // Templates always use claudeCode as the placeholder factory.
-    content = content.replace(/\bclaudeCode\b/g, agent.factoryImport);
-    // Replace model strings in factory calls: factoryImport("any-model")
-    const factoryCallRe = new RegExp(
-      `${agent.factoryImport}\\(["']([^"']+)["']\\)`,
-      "g",
-    );
-    content = content.replace(
-      factoryCallRe,
-      `${agent.factoryImport}("${model}")`,
-    );
+    if (!skipAgentRewrite) {
+      // Replace factory function name in imports (e.g. claudeCode → pi)
+      // and all factory calls with the correct model.
+      // Templates always use claudeCode as the placeholder factory.
+      content = content.replace(/\bclaudeCode\b/g, agent.factoryImport);
+      // Replace model strings in factory calls: factoryImport("any-model")
+      const factoryCallRe = new RegExp(
+        `${agent.factoryImport}\\(["']([^"']+)["']\\)`,
+        "g",
+      );
+      content = content.replace(
+        factoryCallRe,
+        `${agent.factoryImport}("${model}")`,
+      );
+    }
 
     // Replace the sandbox provider. Templates always use `docker` as the
     // placeholder, where the registry name doubles as both the factory function
@@ -893,6 +933,7 @@ const substituteTemplateArgs = (
           for (const [key, value] of Object.entries(
             issueTracker.templateArgs,
           )) {
+            if (value === undefined) continue;
             content = content.replace(
               new RegExp(`\\{\\{${key}\\}\\}`, "g"),
               value,
@@ -1041,6 +1082,22 @@ export const scaffold = (
       );
     }
 
+    const templateMeta = TEMPLATES.find((t) => t.name === templateName);
+    const isFixedRole = templateMeta?.scaffoldStrategy === "fixed-role";
+
+    // Fixed-role templates rely on the issue tracker supporting comments (the
+    // reviewer's audit trail). Reject trackers that lack it before creating
+    // anything on disk, with a clear pointer to the supported tracker.
+    if (isFixedRole && !issueTracker.templateArgs.COMMENT_TASK_COMMAND) {
+      yield* Effect.fail(
+        new Error(
+          `The "${templateName}" template requires an issue tracker that supports posting ` +
+            `comments (currently only GitHub Issues). The "${issueTracker.name}" tracker does ` +
+            `not. Re-run init with --issue-tracker github-issues.`,
+        ),
+      );
+    }
+
     const mainFilename = yield* detectMainFilename(repoDir);
 
     yield* fs
@@ -1049,21 +1106,39 @@ export const scaffold = (
 
     const templateDir = yield* getTemplateDir(templateName);
 
+    // Fixed-role templates own their roles. The `.env.example` is generated for
+    // the implementer role (Claude Code) regardless of the selected `--agent`,
+    // and the container build file is the template's own (which installs every
+    // role's CLI) rather than the single-agent AGENT_REGISTRY one. The reviewer
+    // (Codex) authenticates from a mounted host cache, so it needs no env key.
+    const envAgent = isFixedRole ? getAgent("claude-code")! : agent;
+
     // Build .env.example from agent + issue tracker env blocks
-    const envExampleParts = [agent.envExample];
+    const envExampleParts = [envAgent.envExample];
     if (issueTracker.envExample) {
       envExampleParts.push(issueTracker.envExample);
     }
     const envExampleContent = envExampleParts.join("\n") + "\n";
 
-    yield* Effect.all(
-      [
-        fs
+    const containerfileEffect = isFixedRole
+      ? fs
+          .copyFile(
+            // Copy the template's own provider-matching build file (Dockerfile
+            // for docker, Containerfile for podman) — never the AGENT_REGISTRY one.
+            join(templateDir, sandboxProvider.containerfileName),
+            join(configDir, sandboxProvider.containerfileName),
+          )
+          .pipe(Effect.mapError((e) => new Error(e.message)))
+      : fs
           .writeFileString(
             join(configDir, sandboxProvider.containerfileName),
             agent.dockerfileTemplate,
           )
-          .pipe(Effect.mapError((e) => new Error(e.message))),
+          .pipe(Effect.mapError((e) => new Error(e.message)));
+
+    yield* Effect.all(
+      [
+        containerfileEffect,
         fs
           .writeFileString(join(configDir, ".gitignore"), GITIGNORE)
           .pipe(Effect.mapError((e) => new Error(e.message))),
@@ -1075,13 +1150,15 @@ export const scaffold = (
       { concurrency: "unbounded" },
     );
 
-    // Rewrite main file with the selected agent factory, model, and sandbox provider
+    // Rewrite main file with the selected sandbox provider (and, for non
+    // fixed-role templates, the selected agent factory + model).
     yield* rewriteMainTs(
       configDir,
       agent,
       model,
       sandboxProvider,
       mainFilename,
+      isFixedRole,
     );
 
     // Replace issue tracker template arguments in all text files (must run before label stripping)

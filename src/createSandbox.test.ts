@@ -13,8 +13,9 @@ import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
-import { claudeCode, codex, pi } from "./AgentProvider.js";
+import { claudeCode, codex, cursor, pi } from "./AgentProvider.js";
 import { createSandbox, type CreateSandboxOptions } from "./createSandbox.js";
+import { Output, StructuredOutputError } from "./Output.js";
 import type { SandboxService } from "./SandboxFactory.js";
 import {
   createBindMountSandboxProvider,
@@ -2209,6 +2210,381 @@ describe("createSandbox", () => {
         "utf-8",
       );
       expect(JSON.parse(copied)).toEqual({ key: "value" });
+    } finally {
+      await sandbox.close();
+      await rm(hostDir, { recursive: true, force: true });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Structured output on sandbox.run() (Phase 1)
+// ---------------------------------------------------------------------------
+
+/** Passthrough Standard Schema validator (mirrors run.test.ts). */
+const mockSchema = () => ({
+  "~standard": {
+    version: 1 as const,
+    vendor: "test",
+    validate: (value: unknown) => ({ value }),
+  },
+});
+
+describe("sandbox.run() structured output", () => {
+  it("returns typed object output extracted from the agent's stdout", async () => {
+    const hostDir = await mkdtemp(join(tmpdir(), "sandbox-out-obj-"));
+    await initRepo(hostDir);
+    await commitFile(hostDir, "init.txt", "init", "initial commit");
+
+    const sandbox = await createSandbox({
+      branch: "out-obj",
+      sandbox: testSandbox,
+      cwd: hostDir,
+      _test: {
+        buildSandbox: (sandboxDir) =>
+          makeMockAgentLayer(
+            sandboxDir,
+            async () => '<result>{"answer":42}</result>',
+          ),
+      },
+    });
+
+    try {
+      const result = await sandbox.run({
+        agent: testProvider,
+        prompt: "emit your answer inside <result> tags",
+        output: Output.object({ tag: "result", schema: mockSchema() }),
+      });
+
+      expect(result.output).toEqual({ answer: 42 });
+    } finally {
+      await sandbox.close();
+      await rm(hostDir, { recursive: true, force: true });
+    }
+  });
+
+  it("returns trimmed string output for Output.string", async () => {
+    const hostDir = await mkdtemp(join(tmpdir(), "sandbox-out-str-"));
+    await initRepo(hostDir);
+    await commitFile(hostDir, "init.txt", "init", "initial commit");
+
+    const sandbox = await createSandbox({
+      branch: "out-str",
+      sandbox: testSandbox,
+      cwd: hostDir,
+      _test: {
+        buildSandbox: (sandboxDir) =>
+          makeMockAgentLayer(
+            sandboxDir,
+            async () => "<summary>  hello world  </summary>",
+          ),
+      },
+    });
+
+    try {
+      const result = await sandbox.run({
+        agent: testProvider,
+        prompt: "emit your summary inside <summary> tags",
+        output: Output.string({ tag: "summary" }),
+      });
+
+      expect(result.output).toBe("hello world");
+    } finally {
+      await sandbox.close();
+      await rm(hostDir, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects output with maxIterations > 1", async () => {
+    const hostDir = await mkdtemp(join(tmpdir(), "sandbox-out-iter-"));
+    await initRepo(hostDir);
+    await commitFile(hostDir, "init.txt", "init", "initial commit");
+
+    const sandbox = await createSandbox({
+      branch: "out-iter",
+      sandbox: testSandbox,
+      cwd: hostDir,
+      _test: {
+        buildSandbox: (sandboxDir) =>
+          makeMockAgentLayer(sandboxDir, async () => "<result>{}</result>"),
+      },
+    });
+
+    try {
+      await expect(
+        sandbox.run({
+          agent: testProvider,
+          prompt: "emit <result> tags",
+          maxIterations: 2,
+          output: Output.object({ tag: "result", schema: mockSchema() }),
+        }),
+      ).rejects.toThrow("output requires maxIterations to be 1");
+    } finally {
+      await sandbox.close();
+      await rm(hostDir, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects when the output tag is not in the resolved prompt", async () => {
+    const hostDir = await mkdtemp(join(tmpdir(), "sandbox-out-tag-"));
+    await initRepo(hostDir);
+    await commitFile(hostDir, "init.txt", "init", "initial commit");
+
+    const sandbox = await createSandbox({
+      branch: "out-tag",
+      sandbox: testSandbox,
+      cwd: hostDir,
+      _test: {
+        buildSandbox: (sandboxDir) =>
+          makeMockAgentLayer(sandboxDir, async () => "<result>{}</result>"),
+      },
+    });
+
+    try {
+      await expect(
+        sandbox.run({
+          agent: testProvider,
+          prompt: "do some work",
+          output: Output.object({ tag: "result", schema: mockSchema() }),
+        }),
+      ).rejects.toThrow("output tag <result> not found in the resolved prompt");
+    } finally {
+      await sandbox.close();
+      await rm(hostDir, { recursive: true, force: true });
+    }
+  });
+
+  it("throws StructuredOutputError on malformed JSON", async () => {
+    const hostDir = await mkdtemp(join(tmpdir(), "sandbox-out-bad-"));
+    await initRepo(hostDir);
+    await commitFile(hostDir, "init.txt", "init", "initial commit");
+
+    const sandbox = await createSandbox({
+      branch: "out-bad",
+      sandbox: testSandbox,
+      cwd: hostDir,
+      _test: {
+        buildSandbox: (sandboxDir) =>
+          makeMockAgentLayer(
+            sandboxDir,
+            async () => "<result>not valid json</result>",
+          ),
+      },
+    });
+
+    try {
+      await expect(
+        sandbox.run({
+          agent: testProvider,
+          prompt: "emit <result> tags",
+          output: Output.object({ tag: "result", schema: mockSchema() }),
+        }),
+      ).rejects.toBeInstanceOf(StructuredOutputError);
+    } finally {
+      await sandbox.close();
+      await rm(hostDir, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects output.maxRetries with a non-resumable provider (cursor)", async () => {
+    const hostDir = await mkdtemp(join(tmpdir(), "sandbox-out-cursor-"));
+    await initRepo(hostDir);
+    await commitFile(hostDir, "init.txt", "init", "initial commit");
+
+    const sandbox = await createSandbox({
+      branch: "out-cursor",
+      sandbox: testSandbox,
+      cwd: hostDir,
+      _test: {
+        buildSandbox: (sandboxDir) =>
+          makeMockAgentLayer(sandboxDir, async () => "<result>{}</result>"),
+      },
+    });
+
+    try {
+      await expect(
+        sandbox.run({
+          agent: cursor("test-model"),
+          prompt: "emit <result> tags",
+          output: Output.object({
+            tag: "result",
+            schema: mockSchema(),
+            maxRetries: 2,
+          }),
+        }),
+      ).rejects.toThrow(
+        /output\.maxRetries requires an agent provider that supports session resumption/,
+      );
+    } finally {
+      await sandbox.close();
+      await rm(hostDir, { recursive: true, force: true });
+    }
+  });
+
+  it("retries once on bad JSON and succeeds on the resumed second attempt", async () => {
+    const hostDir = await mkdtemp(join(tmpdir(), "sandbox-out-retry-"));
+    const hostProjectsDir = await mkdtemp(
+      join(tmpdir(), "sandbox-out-retry-host-"),
+    );
+    const sandboxProjectsDir = await mkdtemp(
+      join(tmpdir(), "sandbox-out-retry-sb-"),
+    );
+    await initRepo(hostDir);
+    await commitFile(hostDir, "init.txt", "init", "initial commit");
+
+    const mockSessionId = "seq-reviewer-retry-session";
+    let agentCall = 0;
+
+    // Bind-mount handle whose copyFileOut/copyFileIn are filesystem copies, so
+    // the orchestrator can capture the session JSONL to the host (making it
+    // visible to the retry's resume precheck) and transfer it back in.
+    const sandboxBaseDir = mkdtempSync(
+      join(tmpdir(), "sandbox-out-retry-base-"),
+    );
+    const fakeHandle: BindMountSandboxHandle = {
+      worktreePath: sandboxBaseDir,
+      exec: async () => ({ stdout: "", stderr: "", exitCode: 0 }),
+      copyFileIn: async (hostPath, sandboxPath) => {
+        await mkdir(dirname(sandboxPath), { recursive: true });
+        await copyFile(hostPath, sandboxPath);
+      },
+      copyFileOut: async (sandboxPath, hostPath) => {
+        await mkdir(dirname(hostPath), { recursive: true });
+        await copyFile(sandboxPath, hostPath);
+      },
+      close: async () => {},
+    };
+
+    const buildSandbox = (sandboxDir: string): SandboxService => {
+      const real = makeLocalSandbox(sandboxDir);
+      return {
+        exec: (command, options) => {
+          if (command.startsWith("claude ") && options?.onLine) {
+            const onLine = options.onLine;
+            return Effect.gen(function* () {
+              const cwd = options?.cwd ?? sandboxDir;
+              const encoded = encodeProjectPath(cwd);
+              const sessionsDir = join(sandboxProjectsDir, encoded);
+              const payload =
+                agentCall === 0
+                  ? "<result>not valid json</result>"
+                  : '<result>{"answer":42}</result>';
+              agentCall += 1;
+              yield* Effect.promise(async () => {
+                await mkdir(sessionsDir, { recursive: true });
+                await writeFile(
+                  join(sessionsDir, `${mockSessionId}.jsonl`),
+                  [
+                    JSON.stringify({
+                      type: "system",
+                      subtype: "init",
+                      session_id: mockSessionId,
+                      cwd,
+                    }),
+                    JSON.stringify({
+                      type: "assistant",
+                      message: {
+                        model: "claude-opus-4-8",
+                        usage: {
+                          input_tokens: 10,
+                          cache_creation_input_tokens: 0,
+                          cache_read_input_tokens: 0,
+                          output_tokens: 5,
+                        },
+                      },
+                      cwd,
+                    }),
+                  ].join("\n"),
+                );
+              });
+              const streamLines = [
+                JSON.stringify({
+                  type: "system",
+                  subtype: "init",
+                  session_id: mockSessionId,
+                }),
+                JSON.stringify({ type: "result", result: payload }),
+              ];
+              for (const line of streamLines) {
+                onLine(line);
+              }
+              return {
+                stdout: streamLines.join("\n"),
+                stderr: "",
+                exitCode: 0,
+              };
+            });
+          }
+          return real.exec(command, options);
+        },
+        copyIn: (h, s) => real.copyIn(h, s),
+        copyFileOut: (s, h) => real.copyFileOut(s, h),
+      };
+    };
+
+    const sandbox = await createSandbox({
+      branch: "out-retry",
+      sandbox: testSandbox,
+      cwd: hostDir,
+      _test: { buildSandbox, bindMountHandle: fakeHandle },
+    });
+
+    try {
+      const result = await sandbox.run({
+        agent: claudeCode("test-model", {
+          sessionStorage: { hostProjectsDir, sandboxProjectsDir },
+        }),
+        prompt: "emit your answer inside <result> tags",
+        output: Output.object({
+          tag: "result",
+          schema: mockSchema(),
+          maxRetries: 1,
+        }),
+      });
+
+      expect(result.output).toEqual({ answer: 42 });
+      expect(agentCall).toBe(2);
+    } finally {
+      await sandbox.close();
+      await rm(hostDir, { recursive: true, force: true });
+      await rm(hostProjectsDir, { recursive: true, force: true });
+      await rm(sandboxProjectsDir, { recursive: true, force: true });
+      await rm(sandboxBaseDir, { recursive: true, force: true });
+    }
+  });
+
+  it("extracts output across two runs on the same warm sandbox", async () => {
+    const hostDir = await mkdtemp(join(tmpdir(), "sandbox-out-warm-"));
+    await initRepo(hostDir);
+    await commitFile(hostDir, "init.txt", "init", "initial commit");
+
+    const sandbox = await createSandbox({
+      branch: "out-warm",
+      sandbox: testSandbox,
+      cwd: hostDir,
+      _test: {
+        buildSandbox: (sandboxDir) =>
+          makeMockAgentLayer(
+            sandboxDir,
+            async () => '<result>{"answer":7}</result>',
+          ),
+      },
+    });
+
+    try {
+      const first = await sandbox.run({
+        agent: testProvider,
+        prompt: "emit your answer inside <result> tags",
+        output: Output.object({ tag: "result", schema: mockSchema() }),
+      });
+      const second = await sandbox.run({
+        agent: testProvider,
+        prompt: "emit your answer inside <result> tags",
+        output: Output.object({ tag: "result", schema: mockSchema() }),
+      });
+
+      expect(first.output).toEqual({ answer: 7 });
+      expect(second.output).toEqual({ answer: 7 });
     } finally {
       await sandbox.close();
       await rm(hostDir, { recursive: true, force: true });

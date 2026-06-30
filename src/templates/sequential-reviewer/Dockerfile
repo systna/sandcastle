@@ -1,0 +1,41 @@
+FROM node:22-bookworm
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+  git \
+  curl \
+  jq \
+  && rm -rf /var/lib/apt/lists/*
+
+{{ISSUE_TRACKER_TOOLS}}
+
+# Build-args for UID/GID alignment: sandcastle <provider> build-image
+# defaults these to the host user's UID/GID so image-built files
+# and bind-mounted files share an owner without runtime chown.
+ARG AGENT_UID=1000
+ARG AGENT_GID=1000
+
+# Rename the base image's "node" user to "agent" and align UID/GID.
+RUN groupmod -o -g $AGENT_GID node && usermod -o -u $AGENT_UID -g $AGENT_GID -d /home/agent -m -l agent node
+
+# Install Codex CLI (the reviewer) — run as root before USER agent.
+RUN npm install -g @openai/codex
+
+USER ${AGENT_UID}:${AGENT_GID}
+
+# Install Claude Code CLI (the implementer).
+RUN curl -fsSL https://claude.ai/install.sh | bash
+
+# Add Claude (and other ~/.local) binaries to PATH.
+ENV PATH="/home/agent/.local/bin:$PATH"
+
+WORKDIR /home/agent
+
+# In worktree sandbox mode, Sandcastle bind-mounts the git worktree at
+# /home/agent/workspace and overrides the working directory to it at container
+# start. Structure your Dockerfile so that /home/agent/workspace can serve as
+# the project root.
+#
+# Codex (the reviewer) authenticates from the host ~/.codex cache, which the
+# generated main.mts bind-mounts in at runtime — it is NOT baked into this image.
+ENTRYPOINT ["sleep", "infinity"]
