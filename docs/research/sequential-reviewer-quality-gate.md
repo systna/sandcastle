@@ -989,7 +989,7 @@ If `sandbox.run({ output })` becomes public API, update README sections for:
 
 Add a changeset:
 
-- package: `@ai-hero/sandcastle`
+- package: `@systna/sandcastle`
 - type: `minor`
 - reason: this is public-facing template behavior and a public API addition
 

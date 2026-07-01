@@ -1,5 +1,5 @@
 ---
-"@ai-hero/sandcastle": minor
+"@systna/sandcastle": minor
 ---
 
 Add structured output to the reusable `sandbox.run()` path and strengthen the `sequential-reviewer` template into a quality gate.
