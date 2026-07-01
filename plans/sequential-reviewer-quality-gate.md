@@ -35,7 +35,7 @@ Durable decisions that apply across all phases:
   (`logs/` already gitignored → stays out of commits and the non-mutation guard).
 - **Loop bounds:** `MAX_TASKS = 10`, `MAX_REVIEW_ROUNDS = 3`. Fix rounds are fresh
   implementer calls with `REVIEW_FINDINGS` injected via `promptArgs` (no `.resume()`).
-- **Release:** `@systna/sandcastle` changeset, type `minor`.
+- **Release:** `@ai-hero/sandcastle` changeset, type `minor`.
 
 ### Two spec-trivia items to resolve during Phase 2
 
@@ -185,6 +185,6 @@ and `typecheck`/`test` are green.
 
 - [ ] §10 failure cases behave as specified (fail loud / stop / preserve branch as appropriate)
 - [ ] README template description and any API docs updated
-- [ ] `minor` changeset added for `@systna/sandcastle`
+- [ ] `minor` changeset added for `@ai-hero/sandcastle`
 - [ ] Full test matrix (§11.1–11.3) passes; snapshots updated
 - [ ] `npm run typecheck` and `npm test` pass

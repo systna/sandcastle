@@ -3,7 +3,7 @@ import {
   type OutputObjectDefinition,
   type RunOptions,
   type RunResult,
-} from "@systna/sandcastle";
+} from "@ai-hero/sandcastle";
 
 export interface RunWithExtractionOptions<T> extends Omit<
   RunOptions,

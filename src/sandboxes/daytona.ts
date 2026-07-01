@@ -72,7 +72,7 @@ export interface DaytonaOptions {
  *
  * @example
  * ```ts
- * import { daytona } from "@systna/sandcastle/sandboxes/daytona";
+ * import { daytona } from "@ai-hero/sandcastle/sandboxes/daytona";
  *
  * const provider = daytona({ apiKey: "dyt_my_key" });
  * ```

@@ -1,5 +1,5 @@
 {
-  "name": "@systna/sandcastle",
+  "name": "@ai-hero/sandcastle",
   "version": "0.12.0",
   "description": "CLI for orchestrating AI agents in isolated sandbox environments",
   "type": "module",
@@ -57,12 +57,9 @@
     "agent"
   ],
   "packageManager": "npm@10.9.2",
-  "publishConfig": {
-    "access": "public"
-  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/systna/sandcastle"
+    "url": "https://github.com/mattpocock/sandcastle"
   },
   "license": "MIT",
   "devDependencies": {
